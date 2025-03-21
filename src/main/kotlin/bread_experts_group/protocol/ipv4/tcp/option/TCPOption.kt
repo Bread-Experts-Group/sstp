@@ -3,6 +3,7 @@ package bread_experts_group.protocol.ipv4.tcp.option
 import bread_experts_group.Writable
 import bread_experts_group.util.ToStringUtil.SmartToString
 import java.io.InputStream
+import java.io.OutputStream
 
 sealed class TCPOption(val type: TCPOptionType) : SmartToString(), Writable {
 	enum class TCPOptionType(val code: Int) {
@@ -15,6 +16,12 @@ sealed class TCPOption(val type: TCPOptionType) : SmartToString(), Writable {
 		companion object {
 			val mapping = entries.associateBy { it.code }
 		}
+	}
+
+	override fun calculateLength(): Int = if (type == TCPOptionType.NO_OPERATION) 1 else 2
+	override fun write(stream: OutputStream) {
+		stream.write(type.code)
+		if (type != TCPOptionType.NO_OPERATION) stream.write(calculateLength())
 	}
 
 	companion object {

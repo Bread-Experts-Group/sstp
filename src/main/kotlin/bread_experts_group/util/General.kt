@@ -34,7 +34,6 @@ const val TEAL = 117
 const val PALE_PINK = 218
 const val PALE_PURPLE = 140
 const val PALE_PINKISH_RED = 217
-const val PINKISH_RED = 218
 const val LIGHT_PINK = 219
 const val WHITE = 255
 fun logLn(color: Int?, text: Any?, vararg arg: Any?) = log(color, "$text\n", arg)
@@ -64,3 +63,12 @@ fun OutputStream.write16(data: Int) = this.write(data shr 8).also { this.write(d
 fun OutputStream.write24(data: Int) = this.write(data shr 16).also { this.write16(data) }
 fun OutputStream.write32(data: Int) = this.write(data shr 24).also { this.write24(data) }
 fun OutputStream.writeInet4(data: Inet4Address) = data.address.forEach { this.write(it.toInt()) }
+
+fun inet4(a: Int, b: Int, c: Int, d: Int): Inet4Address = Inet4Address.getByAddress(
+	byteArrayOf(
+		a.toByte(),
+		b.toByte(),
+		c.toByte(),
+		d.toByte()
+	)
+) as Inet4Address

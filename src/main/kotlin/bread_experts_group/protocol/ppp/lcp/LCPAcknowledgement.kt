@@ -4,12 +4,10 @@ import bread_experts_group.protocol.ppp.lcp.option.LinkControlConfigurationOptio
 import java.io.InputStream
 import java.io.OutputStream
 
-class LinkControlConfigurationRequest(
-	broadcastAddress: Int,
-	unnumberedData: Int,
+class LCPAcknowledgement(
 	identifier: Int,
 	val options: List<LinkControlConfigurationOption>
-) : LinkControlProtocolFrame(broadcastAddress, unnumberedData, identifier, LinkControlType.CONFIGURE_REQUEST) {
+) : LinkControlProtocolFrame(identifier, LinkControlType.CONFIGURE_ACK) {
 	override fun calculateLength(): Int = super.calculateLength() + run {
 		this.options.sumOf { it.calculateLength() }
 	}
@@ -21,13 +19,10 @@ class LinkControlConfigurationRequest(
 	}
 
 	companion object {
-		fun read(
-			stream: InputStream,
-			broadcastAddress: Int, unnumberedData: Int, id: Int, length: Int
-		): LinkControlConfigurationRequest {
+		fun read(stream: InputStream, id: Int, length: Int): LCPAcknowledgement {
 			var remainingLength = length
-			val req = LinkControlConfigurationRequest(
-				broadcastAddress, unnumberedData, id,
+			val req = LCPAcknowledgement(
+				id,
 				buildList {
 					while (remainingLength > 0) {
 						val option = LinkControlConfigurationOption.Companion.read(stream)

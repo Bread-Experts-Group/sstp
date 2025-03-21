@@ -5,12 +5,10 @@ import bread_experts_group.protocol.ppp.ccp.option.CompressionControlConfigurati
 import java.io.InputStream
 import java.io.OutputStream
 
-class CompressionControlConfigurationRequest(
-	broadcastAddress: Int,
-	unnumberedData: Int,
+class CCPRequest(
 	identifier: Int,
 	val options: List<CompressionControlConfigurationOption>
-) : CompressionControlProtocolFrame(broadcastAddress, unnumberedData, identifier, ControlType.CONFIGURE_REQUEST) {
+) : CompressionControlProtocolFrame(identifier, ControlType.CONFIGURE_REQUEST) {
 	override fun calculateLength(): Int = super.calculateLength() + run {
 		this.options.sumOf { it.calculateLength() }
 	}
@@ -22,13 +20,10 @@ class CompressionControlConfigurationRequest(
 	}
 
 	companion object {
-		fun read(
-			stream: InputStream,
-			broadcastAddress: Int, unnumberedData: Int, id: Int, length: Int
-		): CompressionControlConfigurationRequest {
+		fun read(stream: InputStream, id: Int, length: Int): CCPRequest {
 			var remainingLength = length
-			val req = CompressionControlConfigurationRequest(
-				broadcastAddress, unnumberedData, id,
+			val req = CCPRequest(
+				id,
 				buildList {
 					while (remainingLength > 0) {
 						val option = CompressionControlConfigurationOption.Companion.read(stream)

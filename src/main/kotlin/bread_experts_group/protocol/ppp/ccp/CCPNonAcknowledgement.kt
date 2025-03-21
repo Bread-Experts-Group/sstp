@@ -5,12 +5,10 @@ import bread_experts_group.protocol.ppp.ccp.option.CompressionControlConfigurati
 import java.io.InputStream
 import java.io.OutputStream
 
-class CompressionControlConfigurationNonAcknowledgement(
-	broadcastAddress: Int,
-	unnumberedData: Int,
+class CCPNonAcknowledgement(
 	identifier: Int,
 	val options: List<CompressionControlConfigurationOption>
-) : CompressionControlProtocolFrame(broadcastAddress, unnumberedData, identifier, ControlType.CONFIGURE_NAK) {
+) : CompressionControlProtocolFrame(identifier, ControlType.CONFIGURE_NAK) {
 	override fun calculateLength(): Int = super.calculateLength() + run {
 		this.options.sumOf { it.calculateLength() }
 	}
@@ -22,11 +20,9 @@ class CompressionControlConfigurationNonAcknowledgement(
 	}
 
 	companion object {
-		fun read(
-			stream: InputStream,
-			broadcastAddress: Int, unnumberedData: Int, id: Int, length: Int
-		): CompressionControlConfigurationNonAcknowledgement {
-			TODO("!!#@(")
+		@Suppress("unused")
+		fun read(stream: InputStream, id: Int, length: Int): CCPNonAcknowledgement {
+			TODO("CCP")
 		}
 	}
 }

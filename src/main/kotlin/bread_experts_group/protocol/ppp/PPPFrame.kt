@@ -2,7 +2,7 @@ package bread_experts_group.protocol.ppp
 
 import bread_experts_group.Writable
 import bread_experts_group.protocol.ppp.ccp.CompressionControlProtocolFrame
-import bread_experts_group.protocol.ppp.ip.IPFrameEncapsulated
+import bread_experts_group.protocol.ppp.ip.InternetProtocolFrameEncapsulated
 import bread_experts_group.protocol.ppp.ipcp.InternetProtocolControlProtocolFrame
 import bread_experts_group.protocol.ppp.ipv6cp.InternetProtocolV6ControlProtocolFrame
 import bread_experts_group.protocol.ppp.lcp.LinkControlProtocolFrame
@@ -14,8 +14,6 @@ import java.io.InputStream
 import java.io.OutputStream
 
 abstract class PPPFrame internal constructor(
-	val broadcastAddress: Int,
-	val unnumberedData: Int,
 	val protocol: PPPProtocol
 ) : SmartToString(), Writable {
 	override fun calculateLength(): Int = 4
@@ -35,34 +33,23 @@ abstract class PPPFrame internal constructor(
 
 	override fun write(stream: OutputStream) {
 		// TODO, the LCP compression options.
-		stream.write(this.broadcastAddress)
-		stream.write(this.unnumberedData)
+		stream.write(0xFF)
+		stream.write(0x03)
 		stream.write16(this.protocol.code)
 	}
 
 	companion object {
 		fun read(stream: InputStream): PPPFrame {
-			val broadcastAddress = stream.read()
-			val unnumberedData = stream.read()
+			stream.read() // broadcastAddress
+			stream.read() // unnumberedData
 			val protocol = PPPProtocol.mapping.getValue(stream.read16())
 			return when (protocol) {
-				PPPProtocol.INTERNET_PROTOCOL_V4 ->
-					IPFrameEncapsulated.read(stream, broadcastAddress, unnumberedData)
-
-				PPPProtocol.PASSWORD_AUTHENTICATION_PROTOCOL ->
-					PasswordAuthenticationProtocolFrame.read(stream, broadcastAddress, unnumberedData)
-
-				PPPProtocol.LINK_CONTROL_PROTOCOL ->
-					LinkControlProtocolFrame.read(stream, broadcastAddress, unnumberedData)
-
-				PPPProtocol.COMPRESSION_CONTROL_PROTOCOL ->
-					CompressionControlProtocolFrame.read(stream, broadcastAddress, unnumberedData)
-
-				PPPProtocol.INTERNET_PROTOCOL_CONTROL_PROTOCOL ->
-					InternetProtocolControlProtocolFrame.read(stream, broadcastAddress, unnumberedData)
-
-				PPPProtocol.INTERNET_PROTOCOL_V6_CONTROL_PROTOCOL ->
-					InternetProtocolV6ControlProtocolFrame.read(stream, broadcastAddress, unnumberedData)
+				PPPProtocol.INTERNET_PROTOCOL_V4 -> InternetProtocolFrameEncapsulated.read(stream)
+				PPPProtocol.PASSWORD_AUTHENTICATION_PROTOCOL -> PasswordAuthenticationProtocolFrame.read(stream)
+				PPPProtocol.LINK_CONTROL_PROTOCOL -> LinkControlProtocolFrame.read(stream)
+				PPPProtocol.COMPRESSION_CONTROL_PROTOCOL -> CompressionControlProtocolFrame.read(stream)
+				PPPProtocol.INTERNET_PROTOCOL_CONTROL_PROTOCOL -> InternetProtocolControlProtocolFrame.read(stream)
+				PPPProtocol.INTERNET_PROTOCOL_V6_CONTROL_PROTOCOL -> InternetProtocolV6ControlProtocolFrame.read(stream)
 			}
 		}
 	}

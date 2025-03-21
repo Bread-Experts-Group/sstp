@@ -8,11 +8,9 @@ import java.io.InputStream
 import java.io.OutputStream
 
 sealed class CompressionControlProtocolFrame(
-	broadcastAddress: Int,
-	unnumberedData: Int,
 	val identifier: Int,
 	val type: ControlType
-) : PPPFrame(broadcastAddress, unnumberedData, PPPProtocol.COMPRESSION_CONTROL_PROTOCOL) {
+) : PPPFrame(PPPProtocol.COMPRESSION_CONTROL_PROTOCOL) {
 	override fun calculateLength(): Int = 4
 
 	override fun write(stream: OutputStream) {
@@ -23,14 +21,12 @@ sealed class CompressionControlProtocolFrame(
 	}
 
 	companion object {
-		fun read(stream: InputStream, broadcastAddress: Int, unnumberedData: Int): CompressionControlProtocolFrame {
+		fun read(stream: InputStream): CompressionControlProtocolFrame {
 			val code = ControlType.Companion.mapping.getValue(stream.read())
 			val id = stream.read()
 			val length = stream.read16() - 4
 			return when (code) {
-				ControlType.CONFIGURE_REQUEST ->
-					CompressionControlConfigurationRequest.Companion.read(stream, broadcastAddress, unnumberedData, id, length)
-
+				ControlType.CONFIGURE_REQUEST -> CCPRequest.read(stream, id, length)
 				else -> TODO(code.toString())
 			}
 		}

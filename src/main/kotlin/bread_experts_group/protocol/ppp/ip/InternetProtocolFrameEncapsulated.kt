@@ -5,11 +5,7 @@ import bread_experts_group.protocol.ppp.PPPFrame
 import java.io.InputStream
 import java.io.OutputStream
 
-class IPFrameEncapsulated(
-	val frame: IPFrame,
-	broadcastAddress: Int = 0xFF,
-	unnumberedData: Int = 0x03
-) : PPPFrame(broadcastAddress, unnumberedData, PPPProtocol.INTERNET_PROTOCOL_V4) {
+class InternetProtocolFrameEncapsulated(val frame: IPFrame) : PPPFrame(PPPProtocol.INTERNET_PROTOCOL_V4) {
 	override fun calculateLength(): Int = super.calculateLength() + frame.calculateLength()
 
 	override fun write(stream: OutputStream) {
@@ -18,8 +14,8 @@ class IPFrameEncapsulated(
 	}
 
 	companion object {
-		fun read(stream: InputStream, broadcastAddress: Int, unnumberedData: Int): IPFrameEncapsulated {
-			return IPFrameEncapsulated(IPFrame.read(stream), broadcastAddress, unnumberedData)
+		fun read(stream: InputStream): InternetProtocolFrameEncapsulated {
+			return InternetProtocolFrameEncapsulated(IPFrame.read(stream))
 		}
 	}
 }

@@ -6,7 +6,8 @@ import java.io.OutputStream
 class TCPWindowScaleOption(val scale: Int) : TCPOption(TCPOptionType.WINDOW_SCALE) {
 	override fun calculateLength(): Int = 3
 	override fun write(stream: OutputStream) {
-		TODO("Not yet implemented")
+		super.write(stream)
+		stream.write(scale)
 	}
 
 	companion object {

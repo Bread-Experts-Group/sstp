@@ -4,12 +4,10 @@ import bread_experts_group.protocol.ppp.lcp.option.LinkControlConfigurationOptio
 import java.io.InputStream
 import java.io.OutputStream
 
-class LinkControlConfigurationNonAcknowledgement(
-	broadcastAddress: Int,
-	unnumberedData: Int,
+class LCPNonAcknowledgement(
 	identifier: Int,
 	val options: List<LinkControlConfigurationOption>
-) : LinkControlProtocolFrame(broadcastAddress, unnumberedData, identifier, LinkControlType.CONFIGURE_NAK) {
+) : LinkControlProtocolFrame(identifier, LinkControlType.CONFIGURE_NAK) {
 	override fun calculateLength(): Int = super.calculateLength() + run {
 		this.options.sumOf { it.calculateLength() }
 	}
@@ -21,11 +19,9 @@ class LinkControlConfigurationNonAcknowledgement(
 	}
 
 	companion object {
-		fun read(
-			stream: InputStream,
-			broadcastAddress: Int, unnumberedData: Int, id: Int, length: Int
-		): LinkControlConfigurationNonAcknowledgement {
-			TODO("!!#@(")
+		@Suppress("unused")
+		fun read(stream: InputStream, id: Int, length: Int): LCPNonAcknowledgement {
+			TODO("LCP NonAck")
 		}
 	}
 }

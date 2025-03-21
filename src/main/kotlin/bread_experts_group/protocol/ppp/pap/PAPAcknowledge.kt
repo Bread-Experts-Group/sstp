@@ -3,14 +3,12 @@ package bread_experts_group.protocol.ppp.pap
 import java.io.InputStream
 import java.io.OutputStream
 
-class PasswordAuthenticationAcknowledge(
-	broadcastAddress: Int,
-	unnumberedData: Int,
+class PAPAcknowledge(
 	identifier: Int,
 	val message: String,
 	ok: Boolean
 ) : PasswordAuthenticationProtocolFrame(
-	broadcastAddress, unnumberedData, identifier,
+	identifier,
 	if (ok) PAPControlType.CONFIGURE_ACK else PAPControlType.CONFIGURE_NAK
 ) {
 	override fun calculateLength(): Int = super.calculateLength() + 1 + message.length
@@ -21,12 +19,8 @@ class PasswordAuthenticationAcknowledge(
 	}
 
 	companion object {
-		fun read(
-			stream: InputStream,
-			broadcastAddress: Int, unnumberedData: Int, id: Int,
-			wasOK: Boolean
-		): PasswordAuthenticationAcknowledge = PasswordAuthenticationAcknowledge(
-			broadcastAddress, unnumberedData, id,
+		fun read(stream: InputStream, id: Int, wasOK: Boolean): PAPAcknowledge = PAPAcknowledge(
+			id,
 			stream.read().let { stream.readNBytes(it).decodeToString() },
 			wasOK
 		)

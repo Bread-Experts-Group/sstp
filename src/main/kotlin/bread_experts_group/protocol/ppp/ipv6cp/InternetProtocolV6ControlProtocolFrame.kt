@@ -8,11 +8,9 @@ import java.io.InputStream
 import java.io.OutputStream
 
 sealed class InternetProtocolV6ControlProtocolFrame(
-	broadcastAddress: Int,
-	unnumberedData: Int,
 	val identifier: Int,
 	val type: ControlType
-) : PPPFrame(broadcastAddress, unnumberedData, PPPProtocol.INTERNET_PROTOCOL_V6_CONTROL_PROTOCOL) {
+) : PPPFrame(PPPProtocol.INTERNET_PROTOCOL_V6_CONTROL_PROTOCOL) {
 	override fun calculateLength(): Int = 4
 
 	override fun write(stream: OutputStream) {
@@ -23,14 +21,12 @@ sealed class InternetProtocolV6ControlProtocolFrame(
 	}
 
 	companion object {
-		fun read(stream: InputStream, broadcastAddress: Int, unnumberedData: Int): InternetProtocolV6ControlProtocolFrame {
+		fun read(stream: InputStream): InternetProtocolV6ControlProtocolFrame {
 			val code = ControlType.Companion.mapping.getValue(stream.read())
 			val id = stream.read()
 			val length = stream.read16() - 4
 			return when (code) {
-				ControlType.CONFIGURE_REQUEST ->
-					InternetProtocolV6ControlConfigurationRequest.read(stream, broadcastAddress, unnumberedData, id, length)
-
+				ControlType.CONFIGURE_REQUEST -> IPv6CPRequest.read(stream, id, length)
 				else -> TODO(code.toString())
 			}
 		}
