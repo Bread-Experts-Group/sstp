@@ -40,10 +40,10 @@ import java.nio.ByteBuffer
 import java.nio.channels.AsynchronousCloseException
 import java.nio.channels.DatagramChannel
 import java.security.KeyStore
-import java.security.SecureRandom
 import java.util.*
 import javax.net.ssl.*
 import kotlin.properties.Delegates
+import kotlin.random.Random
 import kotlin.system.exitProcess
 
 fun stringToInt(str: String): Int =
@@ -116,7 +116,7 @@ fun logInterfaceDetails(face: NetworkInterface) {
 
 @OptIn(ExperimentalUnsignedTypes::class)
 fun main(args: Array<String>) {
-	val secureRandom = SecureRandom.getInstanceStrong()
+	val secureRandom = Random //SecureRandom.getInstanceStrong()
 	val singleArgs = mutableMapOf<Flags, Any>()
 	val multipleArgs = mutableMapOf<Flags, MutableList<Any>>()
 	logLn("Supplied Command Line Arguments")
@@ -312,7 +312,11 @@ fun main(args: Array<String>) {
 					PPPEncapsulate(
 						IPCPRequest(
 							ppp.identifier,
-							listOf(IPAddressProtocolOption(Inet4Address.getLocalHost() as Inet4Address))
+							listOf(
+								IPAddressProtocolOption(
+									inet4(192, 168, secureRandom.nextInt(), secureRandom.nextInt())
+								)
+							)
 						)
 					).also {
 						it.write(flushStream)

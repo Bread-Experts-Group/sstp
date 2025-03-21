@@ -1,4 +1,5 @@
 plugins {
+	application
 	kotlin("jvm") version "2.1.10"
 }
 
@@ -19,4 +20,8 @@ tasks.test {
 }
 kotlin {
 	jvmToolchain(21)
+}
+
+application {
+	mainClass = "bread_experts_group.MainKt"
 }
