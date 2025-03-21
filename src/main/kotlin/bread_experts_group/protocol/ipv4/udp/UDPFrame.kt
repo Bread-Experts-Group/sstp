@@ -3,11 +3,21 @@ package bread_experts_group.protocol.ipv4.udp
 import bread_experts_group.protocol.ipv4.IPFrame
 import bread_experts_group.util.read16
 import bread_experts_group.util.write16
+import bread_experts_group.util.writeInet4
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.Inet4Address
 
+/**
+ * A User Datagram Protocol frame that runs on top of [IPFrame].
+ * @param sourcePort The source port (sender).
+ * @param destPort The destination port (receiver).
+ * @param checksum The checksum for this UDP packet (if read). This will be recomputed when sent.
+ * @param data The data to send after the UDP header.
+ * @author Miko Elbrecht
+ * @since 1.0.0; 2025/03/19
+ */
 class UDPFrame(
 	dscp: Int,
 	ecn: Int,
@@ -28,6 +38,12 @@ class UDPFrame(
 ) {
 	override fun calculateLength(): Int = super.calculateLength() + (8 + data.size)
 	override fun write(stream: OutputStream) {
+		val pseudo = ByteArrayOutputStream()
+		pseudo.writeInet4(super.source)
+		pseudo.writeInet4(super.destination)
+		pseudo.write(0)
+		pseudo.write(super.protocol.code)
+		pseudo.write16(8 + data.size)
 		super.write(stream)
 		val out = ByteArrayOutputStream()
 		out.write16(sourcePort)
@@ -35,11 +51,12 @@ class UDPFrame(
 		out.write16(8 + data.size)
 		out.write16(0)
 		out.write(data)
-		val asData = out.toByteArray()
-		val sum = calculateChecksum(asData)
-		asData[asData.size - data.size - 1] = (sum shr 8).toByte()
-		asData[asData.size - data.size - 2] = sum.toByte()
-		stream.write(asData)
+		val realData = out.toByteArray()
+		pseudo.write(realData)
+		val sum = calculateChecksum(pseudo.toByteArray())
+		realData[realData.size - data.size - 2] = (sum shr 8).toByte()
+		realData[realData.size - data.size - 1] = sum.toByte()
+		stream.write(realData)
 	}
 
 	companion object {
