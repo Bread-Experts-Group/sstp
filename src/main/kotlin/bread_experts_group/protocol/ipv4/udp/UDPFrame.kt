@@ -49,7 +49,7 @@ class UDPFrame(
 		out.write16(sourcePort)
 		out.write16(destPort)
 		out.write16(8 + data.size)
-		out.write16(0)
+		out.write16(0) // Checksum written later
 		out.write(data)
 		val realData = out.toByteArray()
 		pseudo.write(realData)

@@ -2,10 +2,7 @@ package bread_experts_group.protocol.ipv4.tcp
 
 import bread_experts_group.protocol.ipv4.IPFrame
 import bread_experts_group.protocol.ipv4.tcp.option.TCPOption
-import bread_experts_group.util.read16
-import bread_experts_group.util.read32
-import bread_experts_group.util.write16
-import bread_experts_group.util.write32
+import bread_experts_group.util.*
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import java.io.OutputStream
@@ -26,7 +23,7 @@ class TCPFrame(
 	val acknowledgementNumber: Int,
 	val tcpFlags: List<TCPFlag>,
 	val window: Int,
-	val checksum: Int,
+	@Suppress("unused") val checksum: Int,
 	val urgentPointer: Int,
 	val options: List<TCPOption>,
 	val data: ByteArray
@@ -35,8 +32,15 @@ class TCPFrame(
 	IPProtocol.TRANSMISSION_CONTROL_PROTOCOL,
 	source, destination
 ) {
-	override fun calculateLength(): Int = super.calculateLength() + (20 + options.sumOf { it.calculateLength() } + data.size)
+	fun tcpLength() = 20 + options.sumOf { it.calculateLength() } + data.size
+	override fun calculateLength(): Int = super.calculateLength() + tcpLength()
 	override fun write(stream: OutputStream) {
+		val pseudo = ByteArrayOutputStream()
+		pseudo.writeInet4(super.source)
+		pseudo.writeInet4(super.destination)
+		pseudo.write(0)
+		pseudo.write(super.protocol.code)
+		pseudo.write16(tcpLength())
 		super.write(stream)
 		val out = ByteArrayOutputStream()
 		out.write16(sourcePort)
@@ -50,15 +54,16 @@ class TCPFrame(
 		tcpFlags.forEach { flagsRaw = flagsRaw or it.position }
 		out.write(flagsRaw)
 		out.write16(window)
-		out.write16(0) // TODO checksum
+		out.write16(0) // Checksum written later
 		out.write16(urgentPointer)
 		options.forEach { it.write(out) }
 		out.write(data)
-		val asData = out.toByteArray()
-		val sum = calculateChecksum(asData)
-		asData[asData.size - data.size - optionSize - 3] = (sum shr 8).toByte()
-		asData[asData.size - data.size - optionSize - 4] = sum.toByte()
-		stream.write(asData)
+		val realData = out.toByteArray()
+		pseudo.write(realData)
+		val sum = calculateChecksum(pseudo.toByteArray())
+		realData[realData.size - data.size - optionSize - 4] = (sum shr 8).toByte()
+		realData[realData.size - data.size - optionSize - 3] = sum.toByte()
+		stream.write(realData)
 	}
 
 	enum class TCPFlag(val position: Int) {

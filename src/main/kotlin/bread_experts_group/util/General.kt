@@ -12,12 +12,13 @@ const val ESC = "\u001b["
 const val RST = ESC + "0m"
 fun log(color: Int? = WHITE, text: Any?, vararg arg: Any?) {
 	System.out.printf(
-		"%s[%s @ %tT] $text$RST",
+		"%s[%s @ %tT] ",
 		"${ESC}38;5;${color}m",
-		Thread.currentThread().name.padEnd(28),
-		Calendar.getInstance(),
-		*arg
+		Thread.currentThread().name.padEnd(32),
+		Calendar.getInstance()
 	)
+	System.out.printf(text.toString(), *arg)
+	System.out.printf(RST)
 }
 
 const val GRAY = 7
@@ -39,6 +40,7 @@ const val WHITE = 255
 fun logLn(color: Int?, text: Any?, vararg arg: Any?) = log(color, "$text\n", arg)
 fun logLn(text: Any?, vararg arg: Any?) = logLn(WHITE, text, arg)
 
+@Suppress("serial")
 class ProtocolViolationException(message: String) : Exception(message)
 
 fun protocolViolation(exp: Any, chk: Any, text: String) {

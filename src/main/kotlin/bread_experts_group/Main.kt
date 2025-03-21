@@ -1,6 +1,5 @@
 package bread_experts_group
 
-import bread_experts_group.protocol.ipv4.IPFrame
 import bread_experts_group.protocol.ipv4.IPFrame.IPFlag
 import bread_experts_group.protocol.ipv4.icmp.ICMPDestinationUnreachable
 import bread_experts_group.protocol.ipv4.icmp.ICMPEcho
@@ -257,45 +256,42 @@ fun main(args: Array<String>) {
 			var ipcpMe: InternetProtocolControlConfigurationAcknowledgement? = null
 			lateinit var protocol: ProtocolType
 
-			fun handleEcho(ppp: LinkControlEcho) {
-				val out = ByteArrayOutputStream()
+			fun handleEcho(ppp: LinkControlEcho) = ByteArrayOutputStream().use {
 				logLn(PALE_LIME, "(NPND, Echo Request) > $ppp")
 				val rep = LinkControlEcho(
 					0xFF, 0x03, ppp.identifier,
 					magicMe, ppp.data, false
 				)
-				rep.write(out)
-				DataMessage(out.toByteArray()).write(flushStream)
+				rep.write(it)
+				DataMessage(it.toByteArray()).write(flushStream)
 				logLn(LIME, "(NPND, Echo Reply) < $rep")
 			}
 
-			fun handleCCP(ppp: CompressionControlConfigurationRequest) {
+			fun handleCCP(ppp: CompressionControlConfigurationRequest) = ByteArrayOutputStream().use {
 				logLn(PALE_TEAL, "(CCP) > $ppp")
-				val out = ByteArrayOutputStream()
 				if (ppp.options.isNotEmpty()) {
 					val nak = CompressionControlConfigurationNonAcknowledgement(
 						0xFF, 0x03, ppp.identifier,
 						listOf(ppp.options.first())
 					)
-					nak.write(out)
-					DataMessage(out.toByteArray()).write(flushStream)
+					nak.write(it)
+					DataMessage(it.toByteArray()).write(flushStream)
 					logLn(PALE_PURPLE, "(CCP) < $nak")
 				} else {
 					TODO("STUFF")
 				}
 			}
 
-			fun handleIPCP(ppp: InternetProtocolControlConfigurationRequest) {
+			fun handleIPCP(ppp: InternetProtocolControlConfigurationRequest) = ByteArrayOutputStream().use { topStream ->
 				logLn(PALE_TEAL, "(IPCP, Link, Them) > $ppp")
-				val out = ByteArrayOutputStream()
 				val hasVJ = ppp.options.firstOrNull { it is VanJacobsonCompressedTCPIPOption }
 				if (hasVJ != null) {
 					val nak = InternetProtocolControlConfigurationNonAcknowledgement(
 						0xFF, 0x03, ppp.identifier,
 						listOf(hasVJ)
 					)
-					nak.write(out)
-					DataMessage(out.toByteArray()).write(flushStream)
+					nak.write(topStream)
+					DataMessage(topStream.toByteArray()).write(flushStream)
 					logLn(PALE_PURPLE, "(IPCP, Link, Them) < $nak")
 				} else {
 					val ip = ppp.options.firstNotNullOfOrNull { it as? IPAddressProtocolOption }
@@ -309,20 +305,24 @@ fun main(args: Array<String>) {
 								)
 							)
 						)
-						nak.write(out)
-						DataMessage(out.toByteArray()).write(flushStream)
+						nak.write(topStream)
+						DataMessage(topStream.toByteArray()).write(flushStream)
 						logLn(PALE_PURPLE, "(IPCP, Link, Them) < $nak")
-					} else {
+						return
+					}
+
+					ByteArrayOutputStream().use {
 						val ack = InternetProtocolControlConfigurationAcknowledgement(
 							0xFF, 0x03, ppp.identifier,
 							ppp.options
 						)
-						ack.write(out)
-						DataMessage(out.toByteArray()).write(flushStream)
+						ack.write(it)
+						DataMessage(it.toByteArray()).write(flushStream)
 						ipcpThem = ack
 						logLn(TEAL, "(IPCP, Link, Them) < $ack")
 						logLn(TEAL, "(IPCP, Link, Them) OK!")
-						out.reset()
+					}
+					ByteArrayOutputStream().use {
 						val req = InternetProtocolControlConfigurationRequest(
 							0xFF, 0x03, ppp.identifier,
 							listOf(
@@ -332,13 +332,31 @@ fun main(args: Array<String>) {
 								)
 							)
 						)
-						req.write(out)
-						DataMessage(out.toByteArray()).write(flushStream)
+						req.write(it)
+						DataMessage(it.toByteArray()).write(flushStream)
 						logLn(PALE_TEAL, "(IPCP, Link, Me) < $req")
 					}
 				}
 			}
 
+			data class TCPConnection(
+				val socket: Socket,
+				val buffer: MutableList<ByteArray>,
+				var ack: Int,
+				var lastAck: Int,
+				var seq: Int,
+			) {
+				var removeEntry: Boolean = false
+					private set
+
+				fun close() {
+					socket.close()
+					buffer.clear()
+					removeEntry = true
+				}
+			}
+
+			val tcp = mutableMapOf<Int, TCPConnection>()
 			while (true) {
 				when (state) {
 					ServerState.ServerConnectRequestPending -> when (val message = Message.read(newSocket.inputStream)) {
@@ -363,7 +381,6 @@ fun main(args: Array<String>) {
 						is DataMessage -> {
 							when (protocol) {
 								ProtocolType.SSTP_ENCAPSULATED_PROTOCOL_PPP -> {
-									val out = ByteArrayOutputStream()
 									val ppp = PPPFrame.read(ByteArrayInputStream(message.data))
 									if (lcpThem == null) {
 										ppp as LinkControlConfigurationRequest
@@ -371,44 +388,49 @@ fun main(args: Array<String>) {
 										var a = ppp.options.firstOrNull { it is ProtocolFieldCompressionOption }
 										var b = ppp.options.firstOrNull { it is AddressAndControlCompressionOption }
 										if (a != null || b != null) {
-											val nak = LinkControlConfigurationNonAcknowledgement(
-												0xFF, 0x03, ppp.identifier,
-												buildList {
-													if (a != null) add(a)
-													if (b != null) add(b)
-												}
-											)
-											nak.write(out)
-											DataMessage(out.toByteArray()).write(flushStream)
-											logLn(PALE_RED, "(NPND, Link, Them) < $nak")
-										} else {
-											val ack = LinkControlConfigurationAcknowledgement(
-												0xFF, 0x03, ppp.identifier,
-												ppp.options
-											)
-											ack.write(out)
-											DataMessage(out.toByteArray()).write(flushStream)
-											logLn(ORANGE, "(NPND, Link, Them) < $ack")
-											lcpThem = ack
-											logLn(ORANGE, "(NPND, Link, Them) OK!")
-											out.reset()
-											magicMe = secureRandom.nextInt()
-											val req = LinkControlConfigurationRequest(
-												0xFF, 0x03, 0x00,
-												buildList {
-													add(MagicNumberOption(magicMe))
-													if (!multipleArgs[Flags.PAP_USERNAME].isNullOrEmpty()) {
-														add(
-															AuthenticationProtocolOption(
-																AuthenticationProtocol.PASSWORD_AUTHENTICATION_PROTOCOL
-															)
-														)
+											ByteArrayOutputStream().use {
+												val nak = LinkControlConfigurationNonAcknowledgement(
+													0xFF, 0x03, ppp.identifier,
+													buildList {
+														if (a != null) add(a)
+														if (b != null) add(b)
 													}
-												}
-											)
-											req.write(out)
-											DataMessage(out.toByteArray()).write(flushStream)
-											logLn(PALE_BLUE, "(NPND, Link, Me) < $req")
+												)
+												nak.write(it)
+												DataMessage(it.toByteArray()).write(flushStream)
+												logLn(PALE_RED, "(NPND, Link, Them) < $nak")
+											}
+										} else {
+											ByteArrayOutputStream().use {
+												val ack = LinkControlConfigurationAcknowledgement(
+													0xFF, 0x03, ppp.identifier,
+													ppp.options
+												)
+												ack.write(it)
+												DataMessage(it.toByteArray()).write(flushStream)
+												logLn(ORANGE, "(NPND, Link, Them) < $ack")
+												lcpThem = ack
+												logLn(ORANGE, "(NPND, Link, Them) OK!")
+											}
+											ByteArrayOutputStream().use {
+												magicMe = secureRandom.nextInt()
+												val req = LinkControlConfigurationRequest(
+													0xFF, 0x03, 0x00,
+													buildList {
+														add(MagicNumberOption(magicMe))
+														if (!multipleArgs[Flags.PAP_USERNAME].isNullOrEmpty()) {
+															add(
+																AuthenticationProtocolOption(
+																	AuthenticationProtocol.PASSWORD_AUTHENTICATION_PROTOCOL
+																)
+															)
+														}
+													}
+												)
+												req.write(it)
+												DataMessage(it.toByteArray()).write(flushStream)
+												logLn(PALE_BLUE, "(NPND, Link, Me) < $req")
+											}
 										}
 									} else if (lcpMe == null) {
 										if (ppp is LinkControlConfigurationAcknowledgement) {
@@ -422,32 +444,31 @@ fun main(args: Array<String>) {
 										is InternetProtocolControlConfigurationRequest -> handleIPCP(ppp)
 										is InternetProtocolV6ControlConfigurationRequest -> TODO("Reject")
 										is PasswordAuthenticationRequest -> {
-											val out = ByteArrayOutputStream()
-											logLn(PALE_PINKISH_RED, "(PAP) > $ppp")
-											val idIndex = multipleArgs.getValue(Flags.PAP_USERNAME).indexOf(ppp.peerID)
-											val passphrase = multipleArgs.getValue(Flags.PAP_PASSPHRASE).getOrNull(idIndex)
-											if (idIndex == -1 || (passphrase != null && ppp.password != passphrase)) {
-												val nak = PasswordAuthenticationAcknowledge(
-													0xFF, 0x03, 0x00,
-													(singleArgs.getValue(Flags.AUTHENTICATION_FAILURE_MESSAGE) as String)
-														.format(ppp.peerID),
-													false
-												)
-												nak.write(out)
-												DataMessage(out.toByteArray()).write(flushStream)
+											ByteArrayOutputStream().use {
+												logLn(PALE_PINKISH_RED, "(PAP) > $ppp")
+												val idIndex = multipleArgs.getValue(Flags.PAP_USERNAME).indexOf(ppp.peerID)
+												val passphrase = multipleArgs.getValue(Flags.PAP_PASSPHRASE).getOrNull(idIndex)
+												if (idIndex == -1 || (passphrase != null && ppp.password != passphrase)) {
+													val nak = PasswordAuthenticationAcknowledge(
+														0xFF, 0x03, 0x00,
+														(singleArgs.getValue(Flags.AUTHENTICATION_FAILURE_MESSAGE) as String)
+															.format(ppp.peerID),
+														false
+													)
+													nak.write(it)
+													logLn(PINKISH_RED, "(PAP) < $nak")
+												} else {
+													val ack = PasswordAuthenticationAcknowledge(
+														0xFF, 0x03, 0x00,
+														(singleArgs.getValue(Flags.AUTHENTICATION_SUCCESSFUL_MESSAGE) as String)
+															.format(ppp.peerID),
+														true
+													)
+													ack.write(it)
+													logLn(LIGHT_PINK, "(PAP) < $ack")
+												}
+												DataMessage(it.toByteArray()).write(flushStream)
 												flushStream.flush()
-												logLn(PINKISH_RED, "(PAP) < $nak")
-											} else {
-												val ack = PasswordAuthenticationAcknowledge(
-													0xFF, 0x03, 0x00,
-													(singleArgs.getValue(Flags.AUTHENTICATION_SUCCESSFUL_MESSAGE) as String)
-														.format(ppp.peerID),
-													true
-												)
-												ack.write(out)
-												DataMessage(out.toByteArray()).write(flushStream)
-												flushStream.flush()
-												logLn(LIGHT_PINK, "(PAP) < $ack")
 											}
 										}
 
@@ -488,57 +509,182 @@ fun main(args: Array<String>) {
 												if (ppp.frame.type == ICMPFrame.ICMPType.ECHO_REQUEST) {
 													logLn(PALE_PINK, "(IP, ICMP, Echo Request) > ${ppp.frame}")
 													val actualReq = ppp.frame.destination.isReachable(1000)
-													val out = ByteArrayOutputStream()
-													if (actualReq) {
-														val reply = ICMPEcho(
-															0, 0, 0, listOf(IPFrame.IPFlag.DONT_FRAGMENT),
-															0, 64, ppp.frame.destination, ppp.frame.source,
-															ppp.frame.echoIdentifier, ppp.frame.echoSequence,
-															ppp.frame.data, false
-														)
-														val encap = IPFrameEncapsulated(0xFF, 0x03, reply)
-														encap.write(out)
-														DataMessage(out.toByteArray()).write(flushStream)
+													ByteArrayOutputStream().use {
+														if (actualReq) {
+															val reply = ICMPEcho(
+																0, 0, 0, listOf(IPFlag.DONT_FRAGMENT),
+																0, 64, ppp.frame.destination, ppp.frame.source,
+																ppp.frame.echoIdentifier, ppp.frame.echoSequence,
+																ppp.frame.data, false
+															)
+															val encap = IPFrameEncapsulated(reply)
+															encap.write(it)
+															logLn(
+																PINKISH_RED,
+																"(IP, ICMP, Echo Reply) < $reply"
+															)
+														} else {
+															val original = ByteArrayOutputStream()
+																.also { ppp.frame.write(it) }
+																.toByteArray()
+															val unreachable = ICMPDestinationUnreachable(
+																0, 0, 0, listOf(IPFlag.DONT_FRAGMENT),
+																0, 64, ppp.frame.destination, ppp.frame.source,
+																original, 1
+															)
+															val encap = IPFrameEncapsulated(unreachable)
+															encap.write(it)
+															logLn(
+																PINKISH_RED,
+																"(IP, ICMP, Destination Unreachable) < $unreachable"
+															)
+														}
+														DataMessage(it.toByteArray()).write(flushStream)
 														flushStream.flush()
-														logLn(PINKISH_RED, "(IP, ICMP, Echo Reply) < $reply")
-													} else {
-														val originalOut = ByteArrayOutputStream()
-														ppp.frame.write(originalOut)
-														val unreachable = ICMPDestinationUnreachable(
-															0, 0, 0, listOf(IPFrame.IPFlag.DONT_FRAGMENT),
-															0, 64, ppp.frame.destination, ppp.frame.source,
-															originalOut.toByteArray(), 1
-														)
-														val encap = IPFrameEncapsulated(0xFF, 0x03, unreachable)
-														encap.write(out)
-														DataMessage(out.toByteArray()).write(flushStream)
-														flushStream.flush()
-														logLn(PINKISH_RED, "(IP, ICMP, Destination Unreachable) < $unreachable")
 													}
 												} else TODO("REPLY")
 											}
 
 											is TCPFrame -> {
-												val out = ByteArrayOutputStream()
-												logLn(PINKISH_RED, "(IP, TCP) > ${ppp.frame}")
-												if (ppp.frame.tcpFlags.contains(TCPFlag.SYNCHRONIZE_SEQUENCE)) {
-													if (ppp.frame.tcpFlags.contains(TCPFlag.ACKNOWLEDGEMENT_NUMBER)) {
-														TODO("ACK")
-													}
-													val synAck = TCPFrame(
-														0, 0, 0, listOf(IPFrame.IPFlag.DONT_FRAGMENT),
-														0, 64, ppp.frame.destination, ppp.frame.source,
-														ppp.frame.destPort, ppp.frame.sourcePort,
-														secureRandom.nextInt(), ppp.frame.sequence + 1,
-														listOf(TCPFlag.SYNCHRONIZE_SEQUENCE, TCPFlag.ACKNOWLEDGEMENT_NUMBER),
-														64240, 0, 0, listOf(), byteArrayOf()
+												fun logTCP(frame: TCPFrame) {
+													logLn(
+														PINKISH_RED,
+														"(IP, TCP) ${frame.source}:${frame.sourcePort} > " +
+																"${frame.destination}:${frame.destPort} | " +
+																"[${frame.tcpFlags.joinToString(",")}] [${frame.data.size}]"
 													)
-													val encap = IPFrameEncapsulated(0xFF, 0x03, synAck)
-													encap.write(out)
-													DataMessage(out.toByteArray()).write(flushStream)
-													flushStream.flush()
-													logLn(PINKISH_RED, "(IP, TCP) < $synAck")
-												} else TODO("OK!")
+												}
+
+												logTCP(ppp.frame)
+												val connection = tcp[ppp.frame.sourcePort]
+
+												fun createRespondFrame(
+													connection: TCPConnection,
+													data: ByteArray,
+													vararg flag: TCPFlag
+												) = TCPFrame(
+													0, 0, 0, listOf(IPFlag.DONT_FRAGMENT),
+													0, 64, ppp.frame.destination, ppp.frame.source,
+													ppp.frame.destPort, ppp.frame.sourcePort,
+													connection.seq, connection.ack,
+													listOf(*flag),
+													64240, 0, 0, listOf(),
+													data
+												)
+
+												if (
+													ppp.frame.tcpFlags.contains(TCPFlag.SYNCHRONIZE_SEQUENCE) &&
+													ppp.frame.tcpFlags.size == 1
+												) {
+													val connection = TCPConnection(Socket(), mutableListOf(), -1, -1, -1)
+													tcp[ppp.frame.sourcePort] = connection
+													connection.seq = secureRandom.nextInt()
+													connection.socket.connect(
+														InetSocketAddress(
+															ppp.frame.destination,
+															ppp.frame.destPort
+														),
+														1000
+													)
+													Thread.ofPlatform().name("${Thread.currentThread().name}-Sock").start {
+														val array = ByteArray(64240)
+														try {
+															while (connection.socket.isConnected) {
+																ByteArrayOutputStream().use {
+																	val read = connection.socket.inputStream.read(array)
+																	val data = createRespondFrame(
+																		connection,
+																		array.sliceArray(0..(read - 1)),
+																		TCPFlag.PUSH_BUFFER, TCPFlag.ACKNOWLEDGEMENT_NUMBER
+																	)
+																	connection.seq += read
+																	val encap = IPFrameEncapsulated(data)
+																	encap.write(it)
+																	DataMessage(it.toByteArray()).write(flushStream)
+																	flushStream.flush()
+																	logTCP(data)
+																}
+															}
+														} catch (_: SocketException) {
+															logLn(PINKISH_RED, "(IP, TCP) Goodbye")
+														}
+													}
+													ByteArrayOutputStream().use {
+														connection.ack = ppp.frame.sequence + 1
+														connection.lastAck = connection.ack
+														val synAck = createRespondFrame(
+															connection,
+															byteArrayOf(),
+															TCPFlag.SYNCHRONIZE_SEQUENCE, TCPFlag.ACKNOWLEDGEMENT_NUMBER
+														)
+														val encap = IPFrameEncapsulated(synAck)
+														encap.write(it)
+														DataMessage(it.toByteArray()).write(flushStream)
+														flushStream.flush()
+														logTCP(synAck)
+													}
+													connection.seq += 1
+												} else if (ppp.frame.tcpFlags.contains(TCPFlag.ACKNOWLEDGEMENT_NUMBER)) {
+													if (connection != null && !connection.socket.isClosed) {
+														connection.buffer.add(ppp.frame.data)
+														connection.ack = ppp.frame.sequence
+														if (ppp.frame.tcpFlags.contains(TCPFlag.PUSH_BUFFER)) {
+															connection.buffer.removeAll {
+																connection.socket.outputStream.write(it)
+																true
+															}
+															connection.socket.outputStream.flush()
+														}
+														if (connection.ack != connection.lastAck) {
+															connection.lastAck = connection.ack
+															ByteArrayOutputStream().use {
+																val ack = createRespondFrame(
+																	connection,
+																	byteArrayOf(),
+																	TCPFlag.ACKNOWLEDGEMENT_NUMBER
+																)
+																val encap = IPFrameEncapsulated(ack)
+																encap.write(it)
+																DataMessage(it.toByteArray()).write(flushStream)
+																flushStream.flush()
+																logTCP(ack)
+															}
+														}
+														if (ppp.frame.tcpFlags.contains(TCPFlag.LAST_PACKET)) {
+															ByteArrayOutputStream().use {
+																val fin = createRespondFrame(
+																	connection,
+																	byteArrayOf(),
+																	TCPFlag.LAST_PACKET,
+																	TCPFlag.ACKNOWLEDGEMENT_NUMBER
+																)
+																val encap = IPFrameEncapsulated(fin)
+																encap.write(it)
+																DataMessage(it.toByteArray()).write(flushStream)
+																flushStream.flush()
+																logTCP(fin)
+															}
+															connection.close()
+														}
+													} else if (connection != null) tcp.remove(ppp.frame.sourcePort)
+													else {
+														ByteArrayOutputStream().use {
+															val fin = TCPFrame(
+																0, 0, 0, listOf(IPFlag.DONT_FRAGMENT),
+																0, 64, ppp.frame.destination, ppp.frame.source,
+																ppp.frame.destPort, ppp.frame.sourcePort,
+																ppp.frame.acknowledgementNumber, 0,
+																listOf(TCPFlag.RESET_CONNECTION),
+																64240, 0, 0, listOf(), byteArrayOf()
+															)
+															val encap = IPFrameEncapsulated(fin)
+															encap.write(it)
+															DataMessage(it.toByteArray()).write(flushStream)
+															flushStream.flush()
+															logTCP(fin)
+														}
+													}
+												}
 											}
 
 											is UDPFrame -> {
@@ -565,18 +711,19 @@ fun main(args: Array<String>) {
 															val read = ByteArray(channel.read(packet))
 															packet.flip()
 															packet.get(read)
-															val udp = UDPFrame(
-																0, 0, 0, listOf(IPFlag.DONT_FRAGMENT),
-																0, 64,
-																ppp.frame.destination, ppp.frame.source,
-																ppp.frame.destPort, ppp.frame.sourcePort,
-																0, read
-															)
-															val encap = IPFrameEncapsulated(0xFF, 0x03, udp)
-															val out = ByteArrayOutputStream()
-															encap.write(out)
-															logLn(LIME, "(IP, UDP) < $udp")
-															DataMessage(out.toByteArray()).write(flushStream)
+															ByteArrayOutputStream().use {
+																val udp = UDPFrame(
+																	0, 0, 0, listOf(IPFlag.DONT_FRAGMENT),
+																	0, 64,
+																	ppp.frame.destination, ppp.frame.source,
+																	ppp.frame.destPort, ppp.frame.sourcePort,
+																	0, read
+																)
+																val encap = IPFrameEncapsulated(udp)
+																encap.write(it)
+																logLn(LIME, "(IP, UDP) < $udp")
+																DataMessage(it.toByteArray()).write(flushStream)
+															}
 															seq++
 														}
 													} catch (_: AsynchronousCloseException) {

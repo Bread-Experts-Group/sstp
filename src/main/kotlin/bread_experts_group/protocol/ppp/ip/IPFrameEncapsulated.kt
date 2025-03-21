@@ -6,9 +6,9 @@ import java.io.InputStream
 import java.io.OutputStream
 
 class IPFrameEncapsulated(
-	broadcastAddress: Int,
-	unnumberedData: Int,
-	val frame: IPFrame
+	val frame: IPFrame,
+	broadcastAddress: Int = 0xFF,
+	unnumberedData: Int = 0x03
 ) : PPPFrame(broadcastAddress, unnumberedData, PPPProtocol.INTERNET_PROTOCOL_V4) {
 	override fun calculateLength(): Int = super.calculateLength() + frame.calculateLength()
 
@@ -19,7 +19,7 @@ class IPFrameEncapsulated(
 
 	companion object {
 		fun read(stream: InputStream, broadcastAddress: Int, unnumberedData: Int): IPFrameEncapsulated {
-			return IPFrameEncapsulated(broadcastAddress, unnumberedData, IPFrame.read(stream))
+			return IPFrameEncapsulated(IPFrame.read(stream), broadcastAddress, unnumberedData)
 		}
 	}
 }
