@@ -52,6 +52,7 @@
           <option value="UNUSED" />
           <option value="KDocUnresolvedReference" />
           <option value="KotlinConstantConditions" />
+          <option value="serial" />
         </list>
       </option>
     </inspection_tool>
