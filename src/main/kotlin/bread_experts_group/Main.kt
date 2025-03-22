@@ -1,11 +1,12 @@
 package bread_experts_group
 
+import bread_experts_group.protocol.dhcp.DynamicHostConfigurationProtocolFrame
+import bread_experts_group.protocol.dhcp.DynamicHostConfigurationProtocolFrame.*
+import bread_experts_group.protocol.dhcp.option.DHCPMessageType
+import bread_experts_group.protocol.dhcp.option.DHCPMessageType.DHCPMessageTypes
 import bread_experts_group.util.*
 import java.io.*
-import java.net.DatagramSocket
-import java.net.InetAddress
-import java.net.InetSocketAddress
-import java.net.NetworkInterface
+import java.net.*
 import java.security.KeyStore
 import java.security.SecureRandom
 import java.security.Security
@@ -44,6 +45,41 @@ fun main(args: Array<String>) {
 	DatagramSocket().use {
 		it.connect(remoteAddress, 7)
 		logInterfaceDetails(NetworkInterface.getByInetAddress(it.localAddress))
+	}
+	logLn("===============================")
+	logLn("Doing DHCP test")
+	logLn("-------------------------------")
+	val socket = DatagramSocket(68)
+	ByteArrayOutputStream().use {
+		val dhcp = DynamicHostConfigurationProtocolFrame(
+			DHCPOperationType.BOOTREQUEST,
+			DHCPHardwareType.ETHERNET_10MB,
+			6,
+			0,
+			0,
+			0,
+			listOf(DHCPFlag.BROADCAST),
+			inet4(0, 0, 0, 0),
+			inet4(0, 0, 0, 0),
+			inet4(0, 0, 0, 0),
+			inet4(0, 0, 0, 0),
+			byteArrayOf(
+				0x00, 0x05, 0x3C, 0x04,
+				(0x8D).toByte(), 0x59, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00,
+				0x00, 0x00, 0x00, 0x00
+			),
+			listOf(DHCPMessageType(DHCPMessageTypes.DHCPDISCOVER))
+		)
+		dhcp.write(it)
+		logLn("< $dhcp")
+		val send = DatagramPacket(it.toByteArray(), it.size(), inet4(192, 168, 0, 255), 67)
+		socket.broadcast = true
+		socket.send(send)
+		val data = ByteArray(512)
+		val receive = DatagramPacket(data, data.size)
+		socket.receive(receive)
+		logLn("> ${DynamicHostConfigurationProtocolFrame.read(ByteArrayInputStream(data))}")
 	}
 	logLn("===============================")
 	logLn("Key store setup ...")
