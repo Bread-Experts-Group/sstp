@@ -1,46 +1,17 @@
 package bread_experts_group
 
-import bread_experts_group.protocol.ipv4.InternetProtocolFrame
-import bread_experts_group.protocol.ipv4.InternetProtocolFrame.IPFlag
-import bread_experts_group.protocol.ipv4.icmp.ICMPDestinationUnreachable
-import bread_experts_group.protocol.ipv4.icmp.ICMPEcho
-import bread_experts_group.protocol.ipv4.icmp.ICMPFrame
-import bread_experts_group.protocol.ipv4.tcp.TCPFrame
-import bread_experts_group.protocol.ipv4.tcp.TCPFrame.TCPFlag
-import bread_experts_group.protocol.ipv4.udp.UDPFrame
-import bread_experts_group.protocol.ppp.PointToPointProtocolFrame
-import bread_experts_group.protocol.ppp.ccp.CCPNonAcknowledgement
-import bread_experts_group.protocol.ppp.ccp.CCPRequest
-import bread_experts_group.protocol.ppp.ip.IPFrameEncapsulated
-import bread_experts_group.protocol.ppp.ipcp.IPCPAcknowledgement
-import bread_experts_group.protocol.ppp.ipcp.IPCPNonAcknowledgement
-import bread_experts_group.protocol.ppp.ipcp.IPCPRequest
-import bread_experts_group.protocol.ppp.ipcp.IPCPTerminationRequest
-import bread_experts_group.protocol.ppp.ipcp.option.IPCPAddressOption
-import bread_experts_group.protocol.ppp.ipv6cp.IPv6CPRequest
-import bread_experts_group.protocol.ppp.lcp.*
-import bread_experts_group.protocol.ppp.lcp.option.LCPAddressAndControlCompressionOption
-import bread_experts_group.protocol.ppp.lcp.option.LCPAuthenticationProtocolOption
-import bread_experts_group.protocol.ppp.lcp.option.LCPAuthenticationProtocolOption.AuthenticationProtocol
-import bread_experts_group.protocol.ppp.lcp.option.LCPMagicNumberOption
-import bread_experts_group.protocol.ppp.lcp.option.LCPProtocolFieldCompressionOption
-import bread_experts_group.protocol.ppp.pap.PAPAcknowledge
-import bread_experts_group.protocol.ppp.pap.PAPRequest
-import bread_experts_group.protocol.sstp.attribute.SSTPCryptoBindingRequestAttribute
-import bread_experts_group.protocol.sstp.attribute.SSTPEncapsulatedProtocolAttribute.ProtocolType
-import bread_experts_group.protocol.sstp.message.*
-import bread_experts_group.protocol.sstp.message.encapsulate.IPEncapsulate
-import bread_experts_group.protocol.sstp.message.encapsulate.PPPEncapsulate
 import bread_experts_group.util.*
 import java.io.*
-import java.net.*
-import java.nio.ByteBuffer
-import java.nio.channels.AsynchronousCloseException
-import java.nio.channels.DatagramChannel
+import java.net.DatagramSocket
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.NetworkInterface
 import java.security.KeyStore
+import java.security.SecureRandom
+import java.security.Security
+import java.util.*
+import java.util.concurrent.ConcurrentLinkedQueue
 import javax.net.ssl.*
-import kotlin.properties.Delegates
-import kotlin.random.Random
 import kotlin.system.exitProcess
 
 enum class ServerState {
@@ -102,7 +73,27 @@ fun main(args: Array<String>) {
 	)
 
 	logLn("= Server loop =================")
+	logLn("Secure Random Algorithms: [${Security.getProperty("securerandom.strongAlgorithms")}]")
+	val algorithm = singleArgs[Flags.SECURE_RANDOM_GENERATOR] as String?
+	if (algorithm == null)
+		logLn("You may select an algorithm with the -random flag. For a non-CSPRNG (not recommended), use an argument of NONE.")
+	else if (algorithm == "NONE") logLn("Using potentially unsecure random source.")
+	else {
+		val rand = SecureRandom.getInstance(
+			algorithm.substringBefore(':'),
+			algorithm.substringAfter(':')
+		)
+		logLn("Using random source \"${rand.algorithm}\" (provider: ${rand.provider}, deprecated: ${rand.isDeprecated})")
+		logLn("Parameters: [${rand.parameters}]")
+	}
 	while (true) {
+		val random =
+			if (algorithm == "NONE") Random()
+			else if (algorithm != null) SecureRandom.getInstance(
+				algorithm.substringBefore(':'),
+				algorithm.substringAfter(':')
+			)
+			else SecureRandom.getInstanceStrong()
 		val newSocket = serverSocket.accept() as SSLSocket
 		Thread.ofPlatform().start {
 			Thread.currentThread().name = "${newSocket.inetAddress}:${newSocket.port};${newSocket.localPort}"
@@ -145,461 +136,35 @@ fun main(args: Array<String>) {
 				protocolViolation(contentLengthOK, true, "No Content-Length")
 			}
 			newSocket.outputStream.write("HTTP/1.1 200\r\nContent-Length:18446744073709551615\r\n\r\n".encodeToByteArray())
-			val flushStream = object : OutputStream() {
-				val buffer = mutableListOf<Byte>()
-				override fun write(b: Int) {
-					buffer.add(b.toByte())
-				}
-
-				override fun flush() {
-					newSocket.outputStream.write(buffer.toByteArray())
-					buffer.clear()
-				}
-			}
-
-			val readStream = object : InputStream() {
-				override fun read(): Int {
-					val read = newSocket.inputStream.read()
-					if (read == -1) throw EOFException()
-					return read
-				}
-			}
-
-			val secureRandom = Random //SecureRandom.getInstanceStrong()
-			var state by Delegates.observable(ServerState.ServerConnectRequestPending) { _, old, new ->
-				logLn(PALE_PINK, "State switch: $old -> $new")
-			}
-			var magicMe = 0
-			var lcpThem: LCPAcknowledgement? = null
-			var lcpMe: LCPAcknowledgement? = null
-			var ipcpThem: IPCPAcknowledgement? = null
-			var ipcpMe: IPCPAcknowledgement? = null
-			lateinit var protocol: ProtocolType
-
-			fun handleEcho(ppp: LCPEcho) {
-				logLn(PALE_LIME, "> ${PPPEncapsulate(ppp)}")
-				PPPEncapsulate(LCPEcho(ppp.identifier, magicMe, ppp.data, false))
-					.also {
-						it.write(flushStream)
-						logLn(LIME, "< $it")
+			operation(
+				object : InputStream() {
+					override fun read(): Int {
+						val read = newSocket.inputStream.read()
+						if (read == -1) throw EOFException()
+						return read
 					}
-			}
-
-			fun handleCCP(ppp: CCPRequest) {
-				logLn(PALE_TEAL, "> ${PPPEncapsulate(ppp)}")
-				if (ppp.options.isNotEmpty()) {
-					PPPEncapsulate(CCPNonAcknowledgement(ppp.identifier, listOf(ppp.options.first())))
-						.also {
-							it.write(flushStream)
-							logLn(PALE_PURPLE, "< $it")
-						}
-				} else {
-					TODO("STUFF")
-				}
-			}
-
-			fun handleIPCP(ppp: IPCPRequest) {
-				logLn(PALE_TEAL, "> ${PPPEncapsulate(ppp)}")
-				val ip = ppp.options.firstNotNullOfOrNull { it as? IPCPAddressOption }
-				if (ip == null || ip.address.address.sum() == 0) {
-					PPPEncapsulate(
-						IPCPNonAcknowledgement(
-							listOf(
-								IPCPAddressOption(
-									inet4(192, 168, 1, 2)
-								)
-							),
-							ppp.identifier
-						)
-					).also {
-						it.write(flushStream)
-						logLn(PALE_PURPLE, "< $it")
-					}
-					return
-				}
-
-				PPPEncapsulate(IPCPAcknowledgement(ppp.options, ppp.identifier)).also {
-					it.write(flushStream)
-					ipcpThem = it.pppFrame
-					logLn(TEAL, "< $it")
-				}
-				PPPEncapsulate(
-					IPCPRequest(
-						listOf(
-							IPCPAddressOption(
-								inet4(192, 168, secureRandom.nextInt(), secureRandom.nextInt())
-							)
-						),
-						ppp.identifier
-					)
-				).also {
-					it.write(flushStream)
-					logLn(PALE_TEAL, "< $it")
-				}
-			}
-
-			fun handleLCPTermination(ppp: LCPTermination) {
-				logLn(PALE_RED, "> ${PPPEncapsulate(ppp)}")
-				PPPEncapsulate(LCPTermination(ppp.identifier, byteArrayOf(), false)).also {
-					lcpThem = null
-					lcpMe = null
-					magicMe = 0
-					it.write(flushStream)
-					logLn(LIGHT_PINK, "< $it")
-				}
-			}
-
-			fun sendICMPUnreachable(code: Int, frame: InternetProtocolFrame) = IPEncapsulate(
-				ICMPDestinationUnreachable(
-					0, 0, 0, listOf(IPFlag.DONT_FRAGMENT),
-					0, 64, frame.destination, frame.source,
-					frame.asBytes(), code
-				)
-			).also {
-				it.write(flushStream)
-				logLn(PALE_PINKISH_RED, "< $it")
-			}
-
-			data class TCPConnection(
-				val socket: Socket,
-				val buffer: MutableList<ByteArray> = mutableListOf(),
-				var ack: Int = -1,
-				var lastAck: Int = -1,
-				var seq: Int = -1,
-			) {
-				var removeEntry: Boolean = false
-					private set
-
-				fun close() {
-					socket.close()
-					buffer.clear()
-					removeEntry = true
-				}
-			}
-
-			val tcp = mutableMapOf<Int, TCPConnection>()
-			while (true) {
-				when (state) {
-					ServerState.ServerConnectRequestPending -> when (val message = SSTPMessage.read(readStream)) {
-						is SSTPConnectionRequest -> {
-							logLn(GRAY, "> $message")
-							protocol = message.attribute.protocolID
-							state = ServerState.ServerCallConnectedPending
-							val ack = SSTPConnectionAcknowledge(
-								SSTPCryptoBindingRequestAttribute(
-									listOf(SSTPCryptoBindingRequestAttribute.HashProtocol.CERT_HASH_PROTOCOL_SHA256),
-									"abcdefghabcdefghabcdefghabcdefgh".encodeToByteArray()
-								)
-							)
-							ack.write(flushStream)
-							logLn(GRAY, "< $ack")
-						}
-
-						else -> TODO(message.toString())
+				},
+				object : OutputStream() {
+					val buffer = ConcurrentLinkedQueue<Byte>()
+					override fun write(b: Int) {
+						buffer.add(b.toByte())
 					}
 
-					ServerState.ServerCallConnectedPending -> when (val message = SSTPMessage.read(readStream)) {
-						is SSTPDataMessage -> when (protocol) {
-							ProtocolType.SSTP_ENCAPSULATED_PROTOCOL_PPP -> {
-								val ppp = PointToPointProtocolFrame.read(ByteArrayInputStream(message.data))
-								if (lcpThem == null) {
-									ppp as LCPRequest
-									logLn(PALE_ORANGE, "> ${PPPEncapsulate(ppp)}")
-									var a = ppp.options.firstOrNull { it is LCPProtocolFieldCompressionOption }
-									var b = ppp.options.firstOrNull { it is LCPAddressAndControlCompressionOption }
-									if (a != null || b != null) {
-										PPPEncapsulate(
-											LCPNonAcknowledgement(
-												buildList {
-													if (a != null) add(a)
-													if (b != null) add(b)
-												},
-												ppp.identifier
-											)
-										).also {
-											it.write(flushStream)
-											logLn(PALE_RED, "< $it")
-										}
-									} else {
-										PPPEncapsulate(LCPAcknowledgement(ppp.options, ppp.identifier)).also {
-											it.write(flushStream)
-											lcpThem = it.pppFrame
-											logLn(ORANGE, "< $it")
-										}
-										magicMe = secureRandom.nextInt()
-										PPPEncapsulate(
-											LCPRequest(
-												buildList {
-													add(LCPMagicNumberOption(magicMe))
-													if (!multipleArgs[Flags.PAP_USERNAME].isNullOrEmpty())
-														add(
-															LCPAuthenticationProtocolOption(
-																AuthenticationProtocol.PASSWORD_AUTHENTICATION_PROTOCOL
-															)
-														)
-												},
-												0x00
-											)
-										).also {
-											it.write(flushStream)
-											logLn(PALE_BLUE, "< $it")
-										}
-									}
-								} else if (lcpMe == null) {
-									if (ppp is LCPAcknowledgement) {
-										logLn(BLUE, "> ${PPPEncapsulate(ppp)}")
-										lcpMe = ppp
-									} else TODO(ppp.toString())
-								} else when (ppp) {
-									is LCPEcho -> handleEcho(ppp)
-									is CCPRequest -> TODO("Reject") //handleCCP(ppp)
-									is IPCPRequest -> handleIPCP(ppp)
-									is IPv6CPRequest -> TODO("Reject")
-									is PAPRequest -> {
-										logLn(PALE_PINKISH_RED, "> ${PPPEncapsulate(ppp)}")
-										val idIndex = multipleArgs.getValue(Flags.PAP_USERNAME).indexOf(ppp.peerID)
-										val passphrase = multipleArgs.getValue(Flags.PAP_PASSPHRASE).getOrNull(idIndex)
-										if (idIndex == -1 || (passphrase != null && ppp.password != passphrase)) {
-											val err = (singleArgs.getValue(Flags.AUTHENTICATION_FAILURE_MESSAGE) as String)
-												.format(ppp.peerID)
-											PPPEncapsulate(PAPAcknowledge(ppp.identifier, err, false)).also {
-												it.write(flushStream)
-												logLn(PALE_PINKISH_RED, "< $it")
-											}
-										} else {
-											val ok = (singleArgs.getValue(Flags.AUTHENTICATION_SUCCESSFUL_MESSAGE) as String)
-												.format(ppp.peerID)
-											PPPEncapsulate(PAPAcknowledge(ppp.identifier, ok, true)).also {
-												it.write(flushStream)
-												logLn(LIGHT_PINK, "< $it")
-											}
-										}
-									}
-
-									is LCPTermination -> handleLCPTermination(ppp)
-									else -> TODO(ppp.toString())
-								}
-							}
-						}
-
-						is SSTPConnected -> {
-							// TODO: Confirm
-							state = ServerState.ServerCallConnected
-						}
-
-						else -> TODO(message.toString())
+					override fun flush() {
+						newSocket.outputStream.write(buffer.toByteArray())
+						buffer.clear()
 					}
-
-					ServerState.ServerCallConnected -> when (val message = SSTPMessage.read(readStream)) {
-						is SSTPDataMessage -> when (protocol) {
-							ProtocolType.SSTP_ENCAPSULATED_PROTOCOL_PPP -> {
-								val ppp = PointToPointProtocolFrame.read(ByteArrayInputStream(message.data))
-								when (ppp) {
-									is LCPEcho -> handleEcho(ppp)
-									is CCPRequest -> handleCCP(ppp)
-									is IPCPRequest -> handleIPCP(ppp)
-									is IPCPAcknowledgement -> {
-										logLn(TEAL, "> ${PPPEncapsulate(ppp)}")
-										ipcpMe = ppp
-									}
-
-									is IPFrameEncapsulated -> when (ppp.frame) {
-										is ICMPEcho -> {
-											if (ppp.frame.type == ICMPFrame.ICMPType.ECHO_REQUEST) {
-												logLn(PALE_PINK, "> ${PPPEncapsulate(ppp)}")
-												val actualReq = ppp.frame.destination.isReachable(1000)
-												if (actualReq) IPEncapsulate(
-													ICMPEcho(
-														0, 0, 0, listOf(IPFlag.DONT_FRAGMENT),
-														0, 64, ppp.frame.destination, ppp.frame.source,
-														ppp.frame.echoIdentifier, ppp.frame.echoSequence,
-														ppp.frame.data, false
-													)
-												).also {
-													it.write(flushStream)
-													logLn(PALE_PINKISH_RED, "< $it")
-												} else sendICMPUnreachable(1, ppp.frame)
-											}
-										}
-
-										is TCPFrame -> {
-											fun sendTCP(frame: TCPFrame) = IPEncapsulate(frame).let {
-												it.write(flushStream)
-												logLn(PALE_PINK, "< $it")
-											}
-
-											fun sendFrame(
-												connection: TCPConnection,
-												vararg flag: TCPFlag,
-												data: ByteArray = byteArrayOf()
-											) = sendTCP(
-												TCPFrame(
-													0, 0, 0, listOf(IPFlag.DONT_FRAGMENT),
-													0, 64, ppp.frame.destination, ppp.frame.source,
-													ppp.frame.destPort, ppp.frame.sourcePort,
-													connection.seq, connection.ack,
-													listOf(*flag),
-													64240, 0, 0, listOf(),
-													data
-												)
-											)
-
-											fun sendReset() {
-												sendTCP(
-													TCPFrame(
-														0, 0, 0, listOf(IPFlag.DONT_FRAGMENT),
-														0, 64, ppp.frame.destination, ppp.frame.source,
-														ppp.frame.destPort, ppp.frame.sourcePort,
-														ppp.frame.acknowledgementNumber, ppp.frame.sequence,
-														listOf(TCPFlag.RST),
-														64240, 0, 0, listOf(),
-														byteArrayOf()
-													)
-												)
-												tcp.remove(ppp.frame.sourcePort)
-											}
-
-											logLn(PALE_PINKISH_RED, "> ${PPPEncapsulate(ppp)}")
-											val connection = tcp[ppp.frame.sourcePort]
-											if (connection == null) {
-												if (ppp.frame.flags.size == 1 && ppp.frame.tcpFlags[0] == TCPFlag.SYN) {
-													try {
-														val socket = Socket()
-														socket.connect(
-															InetSocketAddress(
-																ppp.frame.destination,
-																ppp.frame.destPort
-															),
-															1000
-														)
-														val newConnection = TCPConnection(socket)
-														Thread.ofPlatform().start {
-															val array = ByteArray(200)
-															try {
-																while (true) {
-																	val readCnt = socket.inputStream.read(array)
-																	if (readCnt == -1) break
-																	sendFrame(
-																		newConnection, TCPFlag.ACK, TCPFlag.PSH,
-																		data = array.sliceArray(0 until readCnt)
-																	)
-																	newConnection.seq += readCnt
-																}
-															} catch (_: SocketException) {
-															}
-														}
-														tcp[ppp.frame.sourcePort] = newConnection
-														newConnection.ack = ppp.frame.sequence + 1
-														newConnection.lastAck = newConnection.ack
-														newConnection.seq = secureRandom.nextInt()
-														sendFrame(newConnection, TCPFlag.SYN, TCPFlag.ACK)
-														newConnection.seq++
-													} catch (_: SocketTimeoutException) {
-														sendICMPUnreachable(1, ppp.frame)
-													}
-												} else sendReset()
-											} else {
-												var send = true
-												val flags = mutableListOf<TCPFlag>()
-												if (ppp.frame.tcpFlags.contains(TCPFlag.ACK)) {
-													if (ppp.frame.data.isNotEmpty()) {
-														connection.ack += ppp.frame.data.size
-														connection.buffer.add(ppp.frame.data)
-														flags.add(TCPFlag.ACK)
-													}
-													if (connection.removeEntry) tcp.remove(ppp.frame.sourcePort)
-												} else {
-													sendReset()
-													send = false
-												}
-												if (ppp.frame.tcpFlags.contains(TCPFlag.PSH)) {
-													try {
-														connection.buffer.removeIf {
-															connection.socket.outputStream.write(it)
-															true
-														}
-													} catch (_: SocketException) {
-														sendReset()
-														send = false
-													}
-												}
-												if (ppp.frame.tcpFlags.contains(TCPFlag.FIN)) {
-													connection.ack += 1
-													flags.add(TCPFlag.ACK)
-													flags.add(TCPFlag.FIN)
-													connection.close()
-												}
-												if (send && flags.isNotEmpty()) sendFrame(connection, *flags.toTypedArray())
-											}
-										}
-
-										is UDPFrame -> {
-											logLn(PALE_LIME, "> ${PPPEncapsulate(ppp)}")
-											Thread.ofPlatform().start {
-												val channel = DatagramChannel.open()
-												channel.connect(
-													InetSocketAddress(
-														ppp.frame.destination,
-														ppp.frame.destPort
-													)
-												)
-												channel.write(ByteBuffer.wrap(ppp.frame.data))
-												var seq = 0
-												try {
-													while (true) {
-														Thread.ofVirtual().start {
-															val savSeq = seq
-															Thread.sleep(30000) // TODO UDP Timeout
-															@Suppress("KotlinConstantConditions")
-															if (savSeq == seq) channel.close()
-														}
-														val packet = ByteBuffer.allocate(65535)
-														val read = ByteArray(channel.read(packet))
-														packet.flip()
-														packet.get(read)
-														IPEncapsulate(
-															UDPFrame(
-																0, 0, 0, listOf(IPFlag.DONT_FRAGMENT),
-																0, 64,
-																ppp.frame.destination, ppp.frame.source,
-																ppp.frame.destPort, ppp.frame.sourcePort,
-																0, read
-															)
-														).also {
-															it.write(flushStream)
-															logLn(LIME, "< $it")
-														}
-														seq++
-													}
-												} catch (_: AsynchronousCloseException) {
-												} catch (_: PortUnreachableException) {
-													channel.close()
-													sendICMPUnreachable(3, ppp.frame)
-												}
-											}
-										}
-
-										else -> TODO(ppp.frame.toString())
-									}
-
-									is LCPTermination -> handleLCPTermination(ppp)
-									is IPCPTerminationRequest -> TODO("IPCP TERM: ${ppp.data.decodeToString()}")
-									else -> TODO(ppp.toString())
-								}
-							}
-						}
-
-						else -> TODO(message.toString())
-					}
-				}
-			}
-			newSocket.close()
+				},
+				singleArgs,
+				multipleArgs,
+				newSocket,
+				random
+			)
 		}.uncaughtExceptionHandler = Thread.UncaughtExceptionHandler { thread, exp ->
-			if (exp is EOFException) {
-				logLn(PALE_RED, "Session ended.")
-				return@UncaughtExceptionHandler
+			when (exp) {
+				is SSLException -> logLn(PALE_PINKISH_RED, "TLS/SSL failure; ${exp.message}")
+				else -> logLn(PALE_RED, exp.stackTraceToString())
 			}
-			logLn(PALE_RED, exp.stackTraceToString())
 			newSocket.close()
 		}
 	}

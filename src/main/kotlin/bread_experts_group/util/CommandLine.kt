@@ -24,14 +24,18 @@ enum class Flags(
 	PAP_USERNAME("pap_username", false, true, null),
 	PAP_PASSPHRASE("pap_passphrase", true, true, null),
 	NETWORK_INTERFACE_LIST("ni_list", false, false, false, ::stringToBoolean),
-	VERBOSITY("verbosity", false, false, 0, ::stringToInt);
+	VERBOSITY("verbosity", false, false, 0, ::stringToInt),
+	SECURE_RANDOM_GENERATOR("random", false, false, null);
 
 	companion object {
 		val mapping = entries.associateBy { it.flagName }
 	}
 }
 
-fun readArgs(args: Array<String>): Pair<Map<Flags, Any>, Map<Flags, List<Any>>> {
+typealias SingleArgs = Map<Flags, Any>
+typealias MultipleArgs = Map<Flags, List<Any>>
+typealias Args = Pair<SingleArgs, MultipleArgs>
+fun readArgs(args: Array<String>): Args {
 	val singleArgs = mutableMapOf<Flags, Any>()
 	val multipleArgs = mutableMapOf<Flags, MutableList<Any>>()
 	val longestFlag = Flags.entries.maxOf { it.flagName.length }

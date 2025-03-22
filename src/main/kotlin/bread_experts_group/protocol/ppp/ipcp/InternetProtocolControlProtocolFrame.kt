@@ -31,7 +31,8 @@ sealed class InternetProtocolControlProtocolFrame(
 			return when (code) {
 				NCPControlType.CONFIGURE_REQUEST -> IPCPRequest(stream, length, id)
 				NCPControlType.CONFIGURE_ACK -> IPCPAcknowledgement(stream, length, id)
-				NCPControlType.TERMINATE_REQUEST -> IPCPTerminationRequest.read(stream, id, length)
+				NCPControlType.TERMINATE_REQUEST -> IPCPTermination.read(stream, id, length, true)
+				NCPControlType.TERMINATE_ACK -> IPCPTermination.read(stream, id, length, false)
 				else -> TODO(code.toString())
 			}
 		}

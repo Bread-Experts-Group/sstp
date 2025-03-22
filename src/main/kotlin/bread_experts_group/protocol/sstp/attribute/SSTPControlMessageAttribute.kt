@@ -19,6 +19,8 @@ sealed class SSTPControlMessageAttribute(val type: AttributeType) : SmartToStrin
 		}
 	}
 
+	override fun calculateLength(): Int = 4
+
 	override fun write(stream: OutputStream) {
 		stream.write(0)
 		stream.write(this.type.code)
@@ -37,7 +39,7 @@ sealed class SSTPControlMessageAttribute(val type: AttributeType) : SmartToStrin
 				AttributeType.SSTP_ATTRIB_ENCAPSULATED_PROTOCOL_ID -> SSTPEncapsulatedProtocolAttribute.read(stream)
 				AttributeType.SSTP_ATTRIB_CRYPTO_BINDING_REQ -> SSTPCryptoBindingRequestAttribute.read(stream)
 				AttributeType.SSTP_ATTRIB_CRYPTO_BINDING -> SSTPCryptoBindingAttribute.read(stream)
-				else -> throw IllegalArgumentException("Unknown attribute type $id")
+				AttributeType.SSTP_ATTRIB_STATUS_INFO -> SSTPStatusAttribute.read(stream)
 			}
 		}
 	}

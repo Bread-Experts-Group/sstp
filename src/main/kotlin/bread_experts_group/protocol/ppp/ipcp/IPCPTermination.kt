@@ -4,10 +4,14 @@ import bread_experts_group.protocol.ppp.NCPControlType
 import java.io.InputStream
 import java.io.OutputStream
 
-class IPCPTerminationRequest(
+class IPCPTermination(
 	identifier: Int,
-	val data: ByteArray
-) : InternetProtocolControlProtocolFrame(identifier, NCPControlType.TERMINATE_REQUEST) {
+	val data: ByteArray,
+	request: Boolean
+) : InternetProtocolControlProtocolFrame(
+	identifier,
+	if (request) NCPControlType.TERMINATE_REQUEST else NCPControlType.TERMINATE_ACK
+) {
 	override fun calculateLength(): Int = super.calculateLength() + data.size
 
 	override fun write(stream: OutputStream) {
@@ -19,8 +23,8 @@ class IPCPTerminationRequest(
 	override fun ipcpGist(): String = "DATA: \"${data.decodeToString()}\""
 
 	companion object {
-		fun read(stream: InputStream, id: Int, length: Int): IPCPTerminationRequest = IPCPTerminationRequest(
-			id, stream.readNBytes(length)
+		fun read(stream: InputStream, id: Int, length: Int, request: Boolean): IPCPTermination = IPCPTermination(
+			id, stream.readNBytes(length), request
 		)
 	}
 }

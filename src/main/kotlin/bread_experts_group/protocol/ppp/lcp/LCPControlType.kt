@@ -11,7 +11,8 @@ enum class LCPControlType(val code: Int) {
 	CODE_REJECT(7),
 	PROTOCOL_REJECT(8),
 	ECHO_REQUEST(9),
-	ECHO_REPLY(10);
+	ECHO_REPLY(10),
+	DISCARD_REQUEST(11);
 
 	companion object {
 		val mapping = entries.associateBy { it.code }

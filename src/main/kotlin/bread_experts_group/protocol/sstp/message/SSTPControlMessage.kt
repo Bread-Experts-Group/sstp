@@ -1,6 +1,8 @@
 package bread_experts_group.protocol.sstp.message
 
 import bread_experts_group.protocol.sstp.attribute.SSTPControlMessageAttribute
+import bread_experts_group.protocol.sstp.attribute.SSTPCryptoBindingRequestAttribute
+import bread_experts_group.protocol.sstp.attribute.SSTPStatusAttribute
 import bread_experts_group.util.read16
 import bread_experts_group.util.write16
 import java.io.InputStream
@@ -49,8 +51,27 @@ sealed class SSTPControlMessage(val type: MessageType, val attributes: List<SSTP
 			val type = MessageType.mapping.getValue(stream.read16())
 			val attributes = List(stream.read16()) { SSTPControlMessageAttribute.read(stream) }
 			return when (type) {
-				MessageType.SSTP_MSG_CALL_CONNECT_REQUEST -> SSTPConnectionRequest(attributes)
-				MessageType.SSTP_MSG_CALL_CONNECTED -> SSTPConnected(attributes)
+				MessageType.SSTP_MSG_CALL_CONNECT_REQUEST ->
+					SSTPConnectionRequest(attributes)
+
+				MessageType.SSTP_MSG_CALL_CONNECT_ACK ->
+					SSTPConnectionAcknowledge(attributes.first() as SSTPCryptoBindingRequestAttribute)
+
+				MessageType.SSTP_MSG_CALL_CONNECTED ->
+					SSTPConnected(attributes)
+
+				MessageType.SSTP_MSG_CALL_ABORT ->
+					SSTPAbort(attributes.first() as SSTPStatusAttribute)
+
+				MessageType.SSTP_MSG_CALL_DISCONNECT_ACK ->
+					SSTPDisconnectAcknowledge()
+
+				MessageType.SSTP_MSG_ECHO_REQUEST ->
+					SSTPEcho(true)
+
+				MessageType.SSTP_MSG_ECHO_RESPONSE ->
+					SSTPEcho(false)
+
 				else -> throw IllegalArgumentException("Unknown type $type, $attributes")
 			}
 		}
