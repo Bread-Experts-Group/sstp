@@ -53,6 +53,7 @@
           <option value="KDocUnresolvedReference" />
           <option value="KotlinConstantConditions" />
           <option value="serial" />
+          <option value="CanBeParameter" />
         </list>
       </option>
     </inspection_tool>

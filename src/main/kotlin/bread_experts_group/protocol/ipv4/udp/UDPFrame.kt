@@ -1,6 +1,6 @@
 package bread_experts_group.protocol.ipv4.udp
 
-import bread_experts_group.protocol.ipv4.IPFrame
+import bread_experts_group.protocol.ipv4.InternetProtocolFrame
 import bread_experts_group.util.read16
 import bread_experts_group.util.write16
 import bread_experts_group.util.writeInet4
@@ -10,7 +10,7 @@ import java.io.OutputStream
 import java.net.Inet4Address
 
 /**
- * A User Datagram Protocol frame that runs on top of [IPFrame].
+ * A User Datagram Protocol frame that runs on top of [InternetProtocolFrame].
  * @param sourcePort The source port (sender).
  * @param destPort The destination port (receiver).
  * @param checksum The checksum for this UDP packet (if read). This will be recomputed when sent.
@@ -31,7 +31,7 @@ class UDPFrame(
 	val destPort: Int,
 	val checksum: Int,
 	val data: ByteArray
-) : IPFrame(
+) : InternetProtocolFrame(
 	dscp, ecn, identification, flags, fragmentOffset, ttl,
 	IPProtocol.USER_DATAGRAM_PROTOCOL,
 	source, destination

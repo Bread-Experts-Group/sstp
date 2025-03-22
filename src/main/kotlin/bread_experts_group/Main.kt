@@ -1,35 +1,37 @@
 package bread_experts_group
 
-import bread_experts_group.protocol.ipv4.IPFrame
-import bread_experts_group.protocol.ipv4.IPFrame.IPFlag
+import bread_experts_group.protocol.ipv4.InternetProtocolFrame
+import bread_experts_group.protocol.ipv4.InternetProtocolFrame.IPFlag
 import bread_experts_group.protocol.ipv4.icmp.ICMPDestinationUnreachable
 import bread_experts_group.protocol.ipv4.icmp.ICMPEcho
 import bread_experts_group.protocol.ipv4.icmp.ICMPFrame
 import bread_experts_group.protocol.ipv4.tcp.TCPFrame
 import bread_experts_group.protocol.ipv4.tcp.TCPFrame.TCPFlag
 import bread_experts_group.protocol.ipv4.udp.UDPFrame
-import bread_experts_group.protocol.ppp.PPPFrame
+import bread_experts_group.protocol.ppp.PointToPointProtocolFrame
 import bread_experts_group.protocol.ppp.ccp.CCPNonAcknowledgement
 import bread_experts_group.protocol.ppp.ccp.CCPRequest
-import bread_experts_group.protocol.ppp.ip.InternetProtocolFrameEncapsulated
+import bread_experts_group.protocol.ppp.ip.IPFrameEncapsulated
 import bread_experts_group.protocol.ppp.ipcp.IPCPAcknowledgement
 import bread_experts_group.protocol.ppp.ipcp.IPCPNonAcknowledgement
 import bread_experts_group.protocol.ppp.ipcp.IPCPRequest
 import bread_experts_group.protocol.ppp.ipcp.IPCPTerminationRequest
-import bread_experts_group.protocol.ppp.ipcp.option.IPAddressProtocolOption
-import bread_experts_group.protocol.ppp.ipcp.option.compression.VanJacobsonCompressedTCPIPOption
+import bread_experts_group.protocol.ppp.ipcp.option.IPCPAddressOption
+import bread_experts_group.protocol.ppp.ipcp.option.compression.IPCPVanJacobsonCompressedTCPIPOption
 import bread_experts_group.protocol.ppp.ipv6cp.IPv6CPRequest
 import bread_experts_group.protocol.ppp.lcp.*
-import bread_experts_group.protocol.ppp.lcp.option.AddressAndControlCompressionOption
-import bread_experts_group.protocol.ppp.lcp.option.AuthenticationProtocolOption
-import bread_experts_group.protocol.ppp.lcp.option.AuthenticationProtocolOption.AuthenticationProtocol
-import bread_experts_group.protocol.ppp.lcp.option.MagicNumberOption
-import bread_experts_group.protocol.ppp.lcp.option.ProtocolFieldCompressionOption
+import bread_experts_group.protocol.ppp.lcp.option.LCPAddressAndControlCompressionOption
+import bread_experts_group.protocol.ppp.lcp.option.LCPAuthenticationProtocolOption
+import bread_experts_group.protocol.ppp.lcp.option.LCPAuthenticationProtocolOption.AuthenticationProtocol
+import bread_experts_group.protocol.ppp.lcp.option.LCPMagicNumberOption
+import bread_experts_group.protocol.ppp.lcp.option.LCPProtocolFieldCompressionOption
 import bread_experts_group.protocol.ppp.pap.PAPAcknowledge
 import bread_experts_group.protocol.ppp.pap.PAPRequest
-import bread_experts_group.protocol.sstp.attribute.CryptoBindingRequestAttribute
-import bread_experts_group.protocol.sstp.attribute.EncapsulatedProtocolAttribute.ProtocolType
+import bread_experts_group.protocol.sstp.attribute.SSTPCryptoBindingRequestAttribute
+import bread_experts_group.protocol.sstp.attribute.SSTPEncapsulatedProtocolAttribute.ProtocolType
 import bread_experts_group.protocol.sstp.message.*
+import bread_experts_group.protocol.sstp.message.encapsulate.IPEncapsulate
+import bread_experts_group.protocol.sstp.message.encapsulate.PPPEncapsulate
 import bread_experts_group.util.*
 import java.io.ByteArrayInputStream
 import java.io.FileInputStream
@@ -40,37 +42,10 @@ import java.nio.ByteBuffer
 import java.nio.channels.AsynchronousCloseException
 import java.nio.channels.DatagramChannel
 import java.security.KeyStore
-import java.util.*
 import javax.net.ssl.*
 import kotlin.properties.Delegates
 import kotlin.random.Random
 import kotlin.system.exitProcess
-
-fun stringToInt(str: String): Int =
-	if (str.substring(0, 1) == "0x") str.substring(2).toInt(16)
-	else if (str.substring(0, 1) == "0b") str.substring(2).toInt(2)
-	else str.toInt()
-
-fun stringToBoolean(str: String): Boolean = str.lowercase().let { it == "true" || it == "yes" || it == "1" }
-
-enum class Flags(
-	val flagName: String, val censored: Boolean, val repeatable: Boolean, val default: Any?,
-	val conv: ((String) -> Any) = { it }
-) {
-	IP_ADDRESS("ip", false, false, "0.0.0.0"),
-	PORT_NUMBER("port", false, false, 443, ::stringToInt),
-	KEYSTORE("keystore", false, false, null),
-	KEYSTORE_PASSPHRASE("keystore_passphrase", true, false, null),
-	AUTHENTICATION_SUCCESSFUL_MESSAGE("auth_ok_msg", false, false, "Authentication OK, %s"),
-	AUTHENTICATION_FAILURE_MESSAGE("auth_bad_msg", false, false, "Authentication FAIL, %s"),
-	PAP_USERNAME("pap_username", false, true, null),
-	PAP_PASSPHRASE("pap_passphrase", true, true, null),
-	NETWORK_INTERFACE_LIST("ni_list", false, false, false, ::stringToBoolean);
-
-	companion object {
-		val mapping = entries.associateBy { it.flagName }
-	}
-}
 
 enum class ServerState {
 	ServerConnectRequestPending,
@@ -78,77 +53,11 @@ enum class ServerState {
 	ServerCallConnected
 }
 
-enum class InterfaceState {
-	POINT_TO_POINT,
-	UP,
-	VIRTUAL,
-	LOOPBACK,
-	MULTICAST
-}
-
-fun <T> Enumeration<T>.toList(): List<T> = buildList {
-	while (this@toList.hasMoreElements()) add(this@toList.nextElement())
-}
-
-fun logInterfaceDetails(face: NetworkInterface) {
-	val state = buildList {
-		if (face.isPointToPoint) add(InterfaceState.POINT_TO_POINT)
-		if (face.isUp) add(InterfaceState.UP)
-		if (face.isVirtual) add(InterfaceState.VIRTUAL)
-		if (face.isLoopback) add(InterfaceState.LOOPBACK)
-		if (face.supportsMulticast()) add(InterfaceState.MULTICAST)
-	}.joinToString(",")
-	logLn("(${face.index}) ${face.name} [$state]")
-	logLn("  Display Name    : ${face.displayName}")
-	face.hardwareAddress?.let {
-		logLn("  Hrdw Address    : ${face.hardwareAddress.joinToString(":") { it.toUByte().toString(16) }}")
-	}
-	logLn("  MTU             : ${face.mtu}")
-	logLn("  Intf. Addresses : (${face.interfaceAddresses.size})")
-	face.interfaceAddresses.forEach {
-		logLn("    ${it.toString().replace("%", "%%")}")
-	}
-	val subInterfaces = face.subInterfaces.toList()
-	logLn("  Sub-interfaces  : (${subInterfaces.size})")
-	subInterfaces.forEach { logInterfaceDetails(it) }
-	face.parent?.let { logLn("  Parent       : (${it.index}) ${it.name}") }
-}
-
 @OptIn(ExperimentalUnsignedTypes::class)
 fun main(args: Array<String>) {
-	val secureRandom = Random //SecureRandom.getInstanceStrong()
-	val singleArgs = mutableMapOf<Flags, Any>()
-	val multipleArgs = mutableMapOf<Flags, MutableList<Any>>()
 	logLn("Supplied Command Line Arguments")
 	logLn("-------------------------------")
-	val longestFlag = Flags.entries.maxOf { it.flagName.length }
-	args.forEach {
-		if (it[0] != '-') throw IllegalArgumentException("Bad argument \"$it\", requires - before name")
-		var equIndex = it.indexOf('=')
-		val flag = Flags.mapping.getValue(it.substring(1, if (equIndex == -1) it.length else equIndex))
-		val value = if (equIndex == -1) "true" else it.substring(equIndex + 1)
-		val asText =
-			if (flag.censored) "*".repeat(value.length + secureRandom.nextInt(-value.length, value.length))
-			else value
-		logLn("${flag.flagName.padEnd(longestFlag)} : $asText")
-		val typedValue = if (value.isNotBlank()) flag.conv(value) else flag.default
-		if (typedValue != null) {
-			if (flag.repeatable) {
-				multipleArgs
-					.getOrPut(flag) { mutableListOf() }
-					.add(typedValue)
-			} else {
-				if (singleArgs.putIfAbsent(flag, typedValue) != null)
-					throw IllegalArgumentException("Duplicate flag, \"${flag.flagName}\"")
-			}
-		}
-	}
-	Flags.entries.forEach {
-		if (!it.repeatable && it.default != null && !singleArgs.contains(it)) {
-			singleArgs.put(it, it.default)
-			logLn("${it.flagName.padEnd(longestFlag)} : ${it.default}")
-		}
-	}
+	val (singleArgs, multipleArgs) = readArgs(args)
 	logLn("===============================")
 	if (singleArgs.getValue(Flags.NETWORK_INTERFACE_LIST) as Boolean) {
 		val interfaces = NetworkInterface.networkInterfaces().toList()
@@ -250,6 +159,8 @@ fun main(args: Array<String>) {
 					buffer.clear()
 				}
 			}
+
+			val secureRandom = Random //SecureRandom.getInstanceStrong()
 			var state by Delegates.observable(ServerState.ServerConnectRequestPending) { _, old, new ->
 				logLn(PALE_PINK, "State switch: $old -> $new")
 			}
@@ -284,7 +195,7 @@ fun main(args: Array<String>) {
 
 			fun handleIPCP(ppp: IPCPRequest) {
 				logLn(PALE_TEAL, "(IPCP, Link, Them) > $ppp")
-				val hasVJ = ppp.options.firstOrNull { it is VanJacobsonCompressedTCPIPOption }
+				val hasVJ = ppp.options.firstOrNull { it is IPCPVanJacobsonCompressedTCPIPOption }
 				if (hasVJ != null) {
 					PPPEncapsulate(IPCPNonAcknowledgement(ppp.identifier, listOf(hasVJ)))
 						.also {
@@ -292,10 +203,10 @@ fun main(args: Array<String>) {
 							logLn(PALE_PURPLE, "(IPCP, Link, Them) < $it")
 						}
 				} else {
-					val ip = ppp.options.firstNotNullOfOrNull { it as? IPAddressProtocolOption }
+					val ip = ppp.options.firstNotNullOfOrNull { it as? IPCPAddressOption }
 					if (ip == null || ip.address.address.sum() == 0) {
 						PPPEncapsulate(
-							IPCPNonAcknowledgement(ppp.identifier, listOf(IPAddressProtocolOption(inet4(192, 168, 1, 2))))
+							IPCPNonAcknowledgement(ppp.identifier, listOf(IPCPAddressOption(inet4(192, 168, 1, 2))))
 						).also {
 							it.write(flushStream)
 							logLn(PALE_PURPLE, "(IPCP, Link, Them) < $it")
@@ -313,7 +224,7 @@ fun main(args: Array<String>) {
 						IPCPRequest(
 							ppp.identifier,
 							listOf(
-								IPAddressProtocolOption(
+								IPCPAddressOption(
 									inet4(192, 168, secureRandom.nextInt(), secureRandom.nextInt())
 								)
 							)
@@ -325,7 +236,7 @@ fun main(args: Array<String>) {
 				}
 			}
 
-			fun sendICMPUnreachable(code: Int, frame: IPFrame) = IPEncapsulate(
+			fun sendICMPUnreachable(code: Int, frame: InternetProtocolFrame) = IPEncapsulate(
 				ICMPDestinationUnreachable(
 					0, 0, 0, listOf(IPFlag.DONT_FRAGMENT),
 					0, 64, frame.destination, frame.source,
@@ -356,14 +267,14 @@ fun main(args: Array<String>) {
 			val tcp = mutableMapOf<Int, TCPConnection>()
 			while (true) {
 				when (state) {
-					ServerState.ServerConnectRequestPending -> when (val message = Message.read(newSocket.inputStream)) {
-						is ConnectionRequest -> {
+					ServerState.ServerConnectRequestPending -> when (val message = SSTPMessage.read(newSocket.inputStream)) {
+						is SSTPConnectionRequest -> {
 							logLn(GRAY, "(CPND) > $message")
 							protocol = message.attribute.protocolID
 							state = ServerState.ServerCallConnectedPending
-							val ack = ConnectionAcknowledge(
-								CryptoBindingRequestAttribute(
-									listOf(CryptoBindingRequestAttribute.HashProtocol.CERT_HASH_PROTOCOL_SHA256),
+							val ack = SSTPConnectionAcknowledge(
+								SSTPCryptoBindingRequestAttribute(
+									listOf(SSTPCryptoBindingRequestAttribute.HashProtocol.CERT_HASH_PROTOCOL_SHA256),
 									"abcdefghabcdefghabcdefghabcdefgh".encodeToByteArray()
 								)
 							)
@@ -374,16 +285,16 @@ fun main(args: Array<String>) {
 						else -> TODO(message.toString())
 					}
 
-					ServerState.ServerCallConnectedPending -> when (val message = Message.read(newSocket.inputStream)) {
-						is DataMessage -> {
+					ServerState.ServerCallConnectedPending -> when (val message = SSTPMessage.read(newSocket.inputStream)) {
+						is SSTPDataMessage -> {
 							when (protocol) {
 								ProtocolType.SSTP_ENCAPSULATED_PROTOCOL_PPP -> {
-									val ppp = PPPFrame.read(ByteArrayInputStream(message.data))
+									val ppp = PointToPointProtocolFrame.read(ByteArrayInputStream(message.data))
 									if (lcpThem == null) {
 										ppp as LCPRequest
 										logLn(PALE_ORANGE, "(NPND, Link, Them) > $ppp")
-										var a = ppp.options.firstOrNull { it is ProtocolFieldCompressionOption }
-										var b = ppp.options.firstOrNull { it is AddressAndControlCompressionOption }
+										var a = ppp.options.firstOrNull { it is LCPProtocolFieldCompressionOption }
+										var b = ppp.options.firstOrNull { it is LCPAddressAndControlCompressionOption }
 										if (a != null || b != null) {
 											PPPEncapsulate(
 												LCPNonAcknowledgement(
@@ -409,10 +320,10 @@ fun main(args: Array<String>) {
 												LCPRequest(
 													0x00,
 													buildList {
-														add(MagicNumberOption(magicMe))
+														add(LCPMagicNumberOption(magicMe))
 														if (!multipleArgs[Flags.PAP_USERNAME].isNullOrEmpty())
 															add(
-																AuthenticationProtocolOption(
+																LCPAuthenticationProtocolOption(
 																	AuthenticationProtocol.PASSWORD_AUTHENTICATION_PROTOCOL
 																)
 															)
@@ -462,7 +373,7 @@ fun main(args: Array<String>) {
 							}
 						}
 
-						is Connected -> {
+						is SSTPConnected -> {
 							// TODO: Confirm
 							state = ServerState.ServerCallConnected
 						}
@@ -470,10 +381,10 @@ fun main(args: Array<String>) {
 						else -> TODO(message.toString())
 					}
 
-					ServerState.ServerCallConnected -> when (val message = Message.read(newSocket.inputStream)) {
-						is DataMessage -> when (protocol) {
+					ServerState.ServerCallConnected -> when (val message = SSTPMessage.read(newSocket.inputStream)) {
+						is SSTPDataMessage -> when (protocol) {
 							ProtocolType.SSTP_ENCAPSULATED_PROTOCOL_PPP -> {
-								val ppp = PPPFrame.read(ByteArrayInputStream(message.data))
+								val ppp = PointToPointProtocolFrame.read(ByteArrayInputStream(message.data))
 								when (ppp) {
 									is LCPEcho -> handleEcho(ppp)
 									is CCPRequest -> handleCCP(ppp)
@@ -484,7 +395,7 @@ fun main(args: Array<String>) {
 										ipcpMe = ppp
 									}
 
-									is InternetProtocolFrameEncapsulated -> when (ppp.frame) {
+									is IPFrameEncapsulated -> when (ppp.frame) {
 										is ICMPEcho -> {
 											if (ppp.frame.type == ICMPFrame.ICMPType.ECHO_REQUEST) {
 												logLn(PALE_PINK, "(IP, ICMP, Echo Request) > ${ppp.frame}")

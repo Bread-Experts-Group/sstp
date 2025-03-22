@@ -1,6 +1,6 @@
 package bread_experts_group.protocol.ipv4.icmp
 
-import bread_experts_group.protocol.ipv4.IPFrame
+import bread_experts_group.protocol.ipv4.InternetProtocolFrame
 import bread_experts_group.util.read16
 import bread_experts_group.util.write16
 import java.io.InputStream
@@ -18,7 +18,7 @@ sealed class ICMPFrame(
 	destination: Inet4Address,
 	val type: ICMPType,
 	val code: Int
-) : IPFrame(
+) : InternetProtocolFrame(
 	dscp, ecn, identification, flags, fragmentOffset, ttl,
 	IPProtocol.INTERNET_CONTROL_MESSAGE_PROTOCOL,
 	source, destination
@@ -28,7 +28,7 @@ sealed class ICMPFrame(
 		super.write(stream)
 		stream.write(type.code)
 		stream.write(code)
-		stream.write16(0) // TODO
+		stream.write16(0) // TODO ICMP Checksum
 	}
 
 	enum class ICMPType(val code: Int) {

@@ -72,3 +72,7 @@ fun inet4(a: Int, b: Int, c: Int, d: Int): Inet4Address = Inet4Address.getByAddr
 		d.toByte()
 	)
 ) as Inet4Address
+
+fun <T> Enumeration<T>.toList(): List<T> = buildList {
+	while (this@toList.hasMoreElements()) add(this@toList.nextElement())
+}

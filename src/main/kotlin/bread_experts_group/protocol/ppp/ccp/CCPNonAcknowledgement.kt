@@ -1,14 +1,14 @@
 package bread_experts_group.protocol.ppp.ccp
 
-import bread_experts_group.protocol.ppp.ControlType
-import bread_experts_group.protocol.ppp.ccp.option.CompressionControlConfigurationOption
+import bread_experts_group.protocol.ppp.NCPControlType
+import bread_experts_group.protocol.ppp.ccp.option.CCPConfigurationOption
 import java.io.InputStream
 import java.io.OutputStream
 
 class CCPNonAcknowledgement(
 	identifier: Int,
-	val options: List<CompressionControlConfigurationOption>
-) : CompressionControlProtocolFrame(identifier, ControlType.CONFIGURE_NAK) {
+	val options: List<CCPConfigurationOption>
+) : CompressionControlProtocolFrame(identifier, NCPControlType.CONFIGURE_NAK) {
 	override fun calculateLength(): Int = super.calculateLength() + run {
 		this.options.sumOf { it.calculateLength() }
 	}

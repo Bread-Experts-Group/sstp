@@ -1,6 +1,6 @@
 package bread_experts_group.protocol.ipv4.tcp
 
-import bread_experts_group.protocol.ipv4.IPFrame
+import bread_experts_group.protocol.ipv4.InternetProtocolFrame
 import bread_experts_group.protocol.ipv4.tcp.option.TCPOption
 import bread_experts_group.util.*
 import java.io.ByteArrayOutputStream
@@ -27,7 +27,7 @@ class TCPFrame(
 	val urgentPointer: Int,
 	val options: List<TCPOption>,
 	val data: ByteArray
-) : IPFrame(
+) : InternetProtocolFrame(
 	dscp, ecn, identification, flags, fragmentOffset, ttl,
 	IPProtocol.TRANSMISSION_CONTROL_PROTOCOL,
 	source, destination

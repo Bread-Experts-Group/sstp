@@ -1,14 +1,14 @@
 package bread_experts_group.protocol.ppp.ipv6cp
 
-import bread_experts_group.protocol.ppp.ControlType
-import bread_experts_group.protocol.ppp.ipv6cp.option.InternetProtocolV6ControlConfigurationOption
+import bread_experts_group.protocol.ppp.NCPControlType
+import bread_experts_group.protocol.ppp.ipv6cp.option.IPv6CPConfigurationOption
 import java.io.InputStream
 import java.io.OutputStream
 
 class IPv6CPRequest(
 	identifier: Int,
-	val options: List<InternetProtocolV6ControlConfigurationOption>
-) : InternetProtocolV6ControlProtocolFrame(identifier, ControlType.CONFIGURE_REQUEST) {
+	val options: List<IPv6CPConfigurationOption>
+) : InternetProtocolV6ControlProtocolFrame(identifier, NCPControlType.CONFIGURE_REQUEST) {
 	override fun calculateLength(): Int = super.calculateLength() + run {
 		this.options.sumOf { it.calculateLength() }
 	}
@@ -26,7 +26,7 @@ class IPv6CPRequest(
 				id,
 				buildList {
 					while (remainingLength > 0) {
-						val option = InternetProtocolV6ControlConfigurationOption.Companion.read(stream)
+						val option = IPv6CPConfigurationOption.Companion.read(stream)
 						remainingLength -= option.calculateLength()
 						add(option)
 					}

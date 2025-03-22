@@ -12,7 +12,7 @@ class LCPEcho(
 	request: Boolean
 ) : LinkControlProtocolFrame(
 	identifier,
-	if (request) LinkControlType.ECHO_REQUEST else LinkControlType.ECHO_REPLY
+	if (request) LCPControlType.ECHO_REQUEST else LCPControlType.ECHO_REPLY
 ) {
 	override fun calculateLength(): Int = super.calculateLength() + 4 + data.size
 	override fun write(stream: OutputStream) {

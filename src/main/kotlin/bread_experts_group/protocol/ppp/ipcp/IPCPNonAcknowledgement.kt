@@ -1,13 +1,13 @@
 package bread_experts_group.protocol.ppp.ipcp
 
-import bread_experts_group.protocol.ppp.ControlType
-import bread_experts_group.protocol.ppp.ipcp.option.InternetProtocolControlConfigurationOption
+import bread_experts_group.protocol.ppp.NCPControlType
+import bread_experts_group.protocol.ppp.ipcp.option.IPCPConfigurationOption
 import java.io.OutputStream
 
 class IPCPNonAcknowledgement(
 	identifier: Int,
-	val options: List<InternetProtocolControlConfigurationOption>
-) : InternetProtocolControlProtocolFrame(identifier, ControlType.CONFIGURE_NAK) {
+	val options: List<IPCPConfigurationOption>
+) : InternetProtocolControlProtocolFrame(identifier, NCPControlType.CONFIGURE_NAK) {
 	override fun calculateLength(): Int = super.calculateLength() + run {
 		this.options.sumOf { it.calculateLength() }
 	}

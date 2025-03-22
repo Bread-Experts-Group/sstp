@@ -1,14 +1,14 @@
 package bread_experts_group.protocol.ppp.ipcp
 
-import bread_experts_group.protocol.ppp.ControlType
-import bread_experts_group.protocol.ppp.ipcp.option.InternetProtocolControlConfigurationOption
+import bread_experts_group.protocol.ppp.NCPControlType
+import bread_experts_group.protocol.ppp.ipcp.option.IPCPConfigurationOption
 import java.io.InputStream
 import java.io.OutputStream
 
 class IPCPAcknowledgement(
 	identifier: Int,
-	val options: List<InternetProtocolControlConfigurationOption>
-) : InternetProtocolControlProtocolFrame(identifier, ControlType.CONFIGURE_ACK) {
+	val options: List<IPCPConfigurationOption>
+) : InternetProtocolControlProtocolFrame(identifier, NCPControlType.CONFIGURE_ACK) {
 	override fun calculateLength(): Int = super.calculateLength() + run {
 		this.options.sumOf { it.calculateLength() }
 	}
@@ -26,7 +26,7 @@ class IPCPAcknowledgement(
 				id,
 				buildList {
 					while (remainingLength > 0) {
-						val option = InternetProtocolControlConfigurationOption.Companion.read(stream)
+						val option = IPCPConfigurationOption.Companion.read(stream)
 						remainingLength -= option.calculateLength()
 						add(option)
 					}

@@ -1,13 +1,13 @@
 package bread_experts_group.protocol.ppp.lcp
 
-import bread_experts_group.protocol.ppp.lcp.option.LinkControlConfigurationOption
+import bread_experts_group.protocol.ppp.lcp.option.LCPConfigurationOption
 import java.io.InputStream
 import java.io.OutputStream
 
 class LCPNonAcknowledgement(
 	identifier: Int,
-	val options: List<LinkControlConfigurationOption>
-) : LinkControlProtocolFrame(identifier, LinkControlType.CONFIGURE_NAK) {
+	val options: List<LCPConfigurationOption>
+) : LinkControlProtocolFrame(identifier, LCPControlType.CONFIGURE_NAK) {
 	override fun calculateLength(): Int = super.calculateLength() + run {
 		this.options.sumOf { it.calculateLength() }
 	}
