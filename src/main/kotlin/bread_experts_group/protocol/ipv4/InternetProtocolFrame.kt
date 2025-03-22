@@ -25,6 +25,25 @@ abstract class InternetProtocolFrame(
 	val source: Inet4Address,
 	val destination: Inet4Address
 ) : SmartToString(), Writable {
+	enum class IPFlag(val position: Int) {
+		DONT_FRAGMENT(0b010),
+		MORE_FRAGMENTS(0b001)
+	}
+
+	enum class IPProtocol(val code: Int) {
+		INTERNET_CONTROL_MESSAGE_PROTOCOL(1),
+		INTERNET_GROUP_MANAGEMENT_PROTOCOL(2),
+		TRANSMISSION_CONTROL_PROTOCOL(6),
+		USER_DATAGRAM_PROTOCOL(17),
+		IPV6_ENCAPSULATION(41),
+		OPEN_SHORTEST_PATH_FIRST(89),
+		STREAM_CONTROL_TRANSMISSION_PROTOCOL(132);
+
+		companion object {
+			val mapping = entries.associateBy { it.code }
+		}
+	}
+
 	override fun calculateLength(): Int = 20
 
 	override fun write(stream: OutputStream) {
@@ -48,24 +67,10 @@ abstract class InternetProtocolFrame(
 		stream.write(asData)
 	}
 
-	enum class IPFlag(val position: Int) {
-		DONT_FRAGMENT(0b010),
-		MORE_FRAGMENTS(0b001)
-	}
+	final override fun gist(): String = "$protocol ($source > $destination), TTL: $ttl, ID: $identification, " +
+			"[${flags.joinToString(",")}]\n${protocolGist()}"
 
-	enum class IPProtocol(val code: Int) {
-		INTERNET_CONTROL_MESSAGE_PROTOCOL(1),
-		INTERNET_GROUP_MANAGEMENT_PROTOCOL(2),
-		TRANSMISSION_CONTROL_PROTOCOL(6),
-		USER_DATAGRAM_PROTOCOL(17),
-		IPV6_ENCAPSULATION(41),
-		OPEN_SHORTEST_PATH_FIRST(89),
-		STREAM_CONTROL_TRANSMISSION_PROTOCOL(132);
-
-		companion object {
-			val mapping = entries.associateBy { it.code }
-		}
-	}
+	abstract fun protocolGist(): String
 
 	companion object {
 		fun calculateChecksum(data: ByteArray): Int {

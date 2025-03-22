@@ -32,6 +32,17 @@ class TCPFrame(
 	IPProtocol.TRANSMISSION_CONTROL_PROTOCOL,
 	source, destination
 ) {
+	enum class TCPFlag(val position: Int) {
+		CWR(0b10000000),
+		EHE(0b01000000),
+		URG(0b00100000),
+		ACK(0b00010000),
+		PSH(0b00001000),
+		RST(0b00000100),
+		SYN(0b00000010),
+		FIN(0b00000001)
+	}
+
 	fun tcpLength() = 20 + options.sumOf { it.calculateLength() } + data.size
 	override fun calculateLength(): Int = super.calculateLength() + tcpLength()
 	override fun write(stream: OutputStream) {
@@ -66,15 +77,11 @@ class TCPFrame(
 		stream.write(realData)
 	}
 
-	enum class TCPFlag(val position: Int) {
-		CWR(0b10000000),
-		EHE(0b01000000),
-		URG(0b00100000),
-		ACK(0b00010000),
-		PSH(0b00001000),
-		RST(0b00000100),
-		SYN(0b00000010),
-		FIN(0b00000001)
+	override fun protocolGist(): String = "($sourcePort > $destPort), SEQ: $sequence, ACK: $acknowledgementNumber, " +
+			"# DATA: [${data.size}], [${tcpFlags.joinToString(",")}], # OPT: [${options.size}]" + buildString {
+		options.forEach {
+			append("\n  ${it.gist()}")
+		}
 	}
 
 	companion object {

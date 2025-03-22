@@ -15,6 +15,8 @@ class IPCPVanJacobsonCompressedTCPIPOption(
 		stream.write(if (this.compressedSlotID) 1 else 0)
 	}
 
+	override fun optionGist(): String = "MAX SLOT ID: $maxSlotID, COMPRESSED SLOT ID: $compressedSlotID"
+
 	companion object {
 		fun read(stream: InputStream): IPCPVanJacobsonCompressedTCPIPOption = IPCPVanJacobsonCompressedTCPIPOption(
 			stream.read(),

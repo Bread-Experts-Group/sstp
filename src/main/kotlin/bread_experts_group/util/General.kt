@@ -11,13 +11,18 @@ fun hex(value: Int): String = "0x${value.toString(16).uppercase()}"
 const val ESC = "\u001b["
 const val RST = ESC + "0m"
 fun log(color: Int? = WHITE, text: Any?, vararg arg: Any?) {
-	System.out.printf(
+	if (text is String && text.length == 3) return
+	val prepend = format(
 		"%s[%s @ %tT] ",
 		"${ESC}38;5;${color}m",
 		Thread.currentThread().name.padEnd(32),
 		Calendar.getInstance()
 	)
-	System.out.printf(text.toString(), *arg)
+	val spaces = " ".padEnd(prepend.length)
+	val (text, last) = text.toString().replace("\t", "  ").let {
+		it.take(it.length - 1).replace("\n", "\n$spaces") to it.takeLast(1)
+	}
+	System.out.printf(prepend + text + last, *arg)
 	System.out.printf(RST)
 }
 

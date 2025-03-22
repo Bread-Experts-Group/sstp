@@ -17,6 +17,8 @@ class PAPRequest(
 		stream.write(password.encodeToByteArray())
 	}
 
+	override fun papGist(): String = "PEER ID: \"$peerID\"\nPASSWORD: \"$password\""
+
 	companion object {
 		fun read(stream: InputStream, id: Int): PAPRequest = PAPRequest(
 			id,

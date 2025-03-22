@@ -59,6 +59,8 @@ class UDPFrame(
 		stream.write(realData)
 	}
 
+	override fun protocolGist(): String = "($sourcePort > $destPort), # DATA: [${data.size}]"
+
 	companion object {
 		fun read(
 			stream: InputStream,

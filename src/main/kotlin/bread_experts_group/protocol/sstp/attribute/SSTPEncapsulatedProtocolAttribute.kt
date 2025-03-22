@@ -24,6 +24,8 @@ class SSTPEncapsulatedProtocolAttribute(
 		stream.flush()
 	}
 
+	override fun attribGist(): String = protocolID.name
+
 	companion object {
 		fun read(stream: InputStream): SSTPEncapsulatedProtocolAttribute {
 			return SSTPEncapsulatedProtocolAttribute(ProtocolType.mapping.getValue(stream.read16()))

@@ -38,6 +38,12 @@ sealed class SSTPControlMessage(val type: MessageType, val attributes: List<SSTP
 		}
 	}
 
+	final override fun gist(): String = super.gist() + "CONTROL $type, # ATTRIB: [${attributes.size}]" + buildString {
+		attributes.forEach {
+			append("\n  ${it.gist()}")
+		}
+	}
+
 	companion object {
 		fun read(stream: InputStream): SSTPControlMessage {
 			val type = MessageType.mapping.getValue(stream.read16())

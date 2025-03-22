@@ -18,6 +18,8 @@ class PAPAcknowledge(
 		stream.write(message.encodeToByteArray())
 	}
 
+	override fun papGist(): String = "\"$message\""
+
 	companion object {
 		fun read(stream: InputStream, id: Int, wasOK: Boolean): PAPAcknowledge = PAPAcknowledge(
 			id,

@@ -23,14 +23,6 @@ sealed class ICMPFrame(
 	IPProtocol.INTERNET_CONTROL_MESSAGE_PROTOCOL,
 	source, destination
 ) {
-	override fun calculateLength(): Int = super.calculateLength() + 4
-	override fun write(stream: OutputStream) {
-		super.write(stream)
-		stream.write(type.code)
-		stream.write(code)
-		stream.write16(0) // TODO ICMP Checksum
-	}
-
 	enum class ICMPType(val code: Int) {
 		ECHO_REPLY(0),
 		DESTINATION_UNREACHABLE(3),
@@ -50,6 +42,17 @@ sealed class ICMPFrame(
 			val mapping = entries.associateBy { it.code }
 		}
 	}
+
+	override fun calculateLength(): Int = super.calculateLength() + 4
+	override fun write(stream: OutputStream) {
+		super.write(stream)
+		stream.write(type.code)
+		stream.write(code)
+		stream.write16(0)
+	}
+
+	final override fun protocolGist(): String = "$type ($code) : ${icmpGist()}"
+	abstract fun icmpGist(): String
 
 	companion object {
 		fun read(

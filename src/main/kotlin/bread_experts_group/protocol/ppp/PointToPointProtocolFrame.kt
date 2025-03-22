@@ -38,6 +38,9 @@ abstract class PointToPointProtocolFrame internal constructor(
 		stream.write16(this.protocol.code)
 	}
 
+	final override fun gist(): String = "PPP [${calculateLength()}] $protocol\n${protocolGist()}"
+	abstract fun protocolGist(): String
+
 	companion object {
 		fun read(stream: InputStream): PointToPointProtocolFrame {
 			stream.read() // broadcastAddress

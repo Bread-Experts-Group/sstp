@@ -30,6 +30,9 @@ class SSTPCryptoBindingRequestAttribute(
 		stream.flush()
 	}
 
+	override fun attribGist(): String = "${hashProtocols.joinToString(",")}\n" +
+			"    # NONCE: [${nonce.size}]"
+
 	companion object {
 		fun read(stream: InputStream): SSTPCryptoBindingRequestAttribute {
 			stream.read24()

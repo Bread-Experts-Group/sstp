@@ -12,6 +12,8 @@ class TCPMaximumSegmentSizeOption(val size: Int) : TCPOption(TCPOptionType.MAXIM
 		stream.write16(size)
 	}
 
+	override fun optionGist(): String = "$size"
+
 	companion object {
 		fun read(stream: InputStream) = TCPMaximumSegmentSizeOption(stream.read16())
 	}

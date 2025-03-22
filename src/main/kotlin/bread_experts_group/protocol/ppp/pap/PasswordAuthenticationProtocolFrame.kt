@@ -19,6 +19,9 @@ sealed class PasswordAuthenticationProtocolFrame(
 		stream.write16(this.calculateLength())
 	}
 
+	final override fun protocolGist(): String = "$type, ID: $identifier\n${papGist()}"
+	abstract fun papGist(): String
+
 	companion object {
 		fun read(stream: InputStream): PasswordAuthenticationProtocolFrame {
 			val code = PAPControlType.mapping.getValue(stream.read())

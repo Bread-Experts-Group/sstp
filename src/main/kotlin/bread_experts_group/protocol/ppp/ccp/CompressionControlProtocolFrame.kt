@@ -20,6 +20,10 @@ sealed class CompressionControlProtocolFrame(
 		stream.write16(this.calculateLength())
 	}
 
+	override fun protocolGist(): String {
+		TODO("Not yet implemented")
+	}
+
 	companion object {
 		fun read(stream: InputStream): CompressionControlProtocolFrame {
 			val code = NCPControlType.Companion.mapping.getValue(stream.read())

@@ -4,6 +4,7 @@ class LCPAddressAndControlCompressionOption : LCPConfigurationOption(
 	ConfigurationOptionType.ADDRESS_AND_CONTROL_FIELD_COMPRESSION
 ) {
 	override fun calculateLength(): Int = 0x2
+	override fun optionGist(): String = "<>"
 
 	companion object {
 		fun read(): LCPAddressAndControlCompressionOption {

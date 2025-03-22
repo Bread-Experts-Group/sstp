@@ -24,6 +24,9 @@ sealed class TCPOption(val type: TCPOptionType) : SmartToString(), Writable {
 		if (type != TCPOptionType.NO_OPERATION) stream.write(calculateLength())
 	}
 
+	final override fun gist(): String = "OPT [${calculateLength()}] $type : ${optionGist()}"
+	abstract fun optionGist(): String
+
 	companion object {
 		fun read(stream: InputStream): TCPOption {
 			val type = TCPOptionType.mapping.getValue(stream.read())

@@ -10,6 +10,8 @@ class TCPWindowScaleOption(val scale: Int) : TCPOption(TCPOptionType.WINDOW_SCAL
 		stream.write(scale)
 	}
 
+	override fun optionGist(): String = "$scale"
+
 	companion object {
 		fun read(stream: InputStream) = TCPWindowScaleOption(stream.read())
 	}

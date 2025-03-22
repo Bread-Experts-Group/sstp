@@ -39,6 +39,8 @@ class ICMPEcho(
 		stream.write(asData)
 	}
 
+	override fun icmpGist(): String = "ID: $echoIdentifier, SEQ: $echoSequence, # DATA: [${data.size}]"
+
 	companion object {
 		fun read(
 			stream: InputStream,

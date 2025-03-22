@@ -35,6 +35,8 @@ class ICMPDestinationUnreachable(
 		stream.write(asData)
 	}
 
+	override fun icmpGist(): String = "# DATA: [${data.size}]"
+
 	companion object {
 		fun read(
 			stream: InputStream,

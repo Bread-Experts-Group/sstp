@@ -1,5 +1,6 @@
 package bread_experts_group.protocol.ppp.lcp.option
 
+import bread_experts_group.util.hex
 import bread_experts_group.util.read32
 import bread_experts_group.util.write32
 import java.io.InputStream
@@ -14,6 +15,8 @@ class LCPMagicNumberOption(
 		super.write(stream)
 		stream.write32(number)
 	}
+
+	override fun optionGist(): String = hex(number)
 
 	companion object {
 		fun read(stream: InputStream): LCPMagicNumberOption {

@@ -19,16 +19,22 @@ sealed class LinkControlProtocolFrame(
 		stream.write16(this.calculateLength())
 	}
 
+	final override fun protocolGist(): String = "$type, ID: $identifier\n${lcpGist()}"
+	abstract fun lcpGist(): String
+
 	companion object {
 		fun read(stream: InputStream): LinkControlProtocolFrame {
 			val code = LCPControlType.mapping.getValue(stream.read())
 			val id = stream.read()
 			val length = stream.read16() - 4
 			return when (code) {
-				LCPControlType.CONFIGURE_REQUEST -> LCPRequest.read(stream, id, length)
-				LCPControlType.CONFIGURE_ACK -> LCPAcknowledgement.read(stream, id, length)
+				LCPControlType.CONFIGURE_REQUEST -> LCPRequest(stream, length, id)
+				LCPControlType.CONFIGURE_NAK -> LCPNonAcknowledgement(stream, length, id)
+				LCPControlType.CONFIGURE_REJECT -> LCPRejection(stream, length, id)
+				LCPControlType.CONFIGURE_ACK -> LCPAcknowledgement(stream, length, id)
 				LCPControlType.ECHO_REQUEST, LCPControlType.ECHO_REPLY -> LCPEcho.read(stream, id, length)
-				LCPControlType.TERMINATE_REQUEST -> LCPTerminationRequest.read(stream, id, length)
+				LCPControlType.TERMINATE_REQUEST -> LCPTermination.read(stream, id, length, true)
+				LCPControlType.TERMINATE_ACK -> LCPTermination.read(stream, id, length, false)
 				else -> TODO(code.toString())
 			}
 		}

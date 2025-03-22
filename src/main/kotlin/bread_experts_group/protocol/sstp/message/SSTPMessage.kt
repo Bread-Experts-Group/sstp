@@ -18,6 +18,8 @@ sealed class SSTPMessage : SmartToString(), Writable {
 		stream.write16(this.calculateLength())
 	}
 
+	override fun gist(): String = "SSTP [${calculateLength()}] "
+
 	companion object {
 		fun read(stream: InputStream): SSTPMessage {
 			val version = stream.read()

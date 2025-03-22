@@ -1,5 +1,6 @@
 package bread_experts_group.protocol.ppp.lcp
 
+import bread_experts_group.util.hex
 import bread_experts_group.util.read32
 import bread_experts_group.util.write32
 import java.io.InputStream
@@ -20,6 +21,8 @@ class LCPEcho(
 		stream.write32(this.magic)
 		stream.write(data)
 	}
+
+	override fun lcpGist(): String = "MAGIC: ${hex(magic)}, # DATA: [${data.size}]"
 
 	companion object {
 		fun read(stream: InputStream, id: Int, length: Int): LCPEcho = LCPEcho(

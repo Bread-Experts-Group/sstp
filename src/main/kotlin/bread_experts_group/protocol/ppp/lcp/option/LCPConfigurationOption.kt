@@ -1,11 +1,11 @@
 package bread_experts_group.protocol.ppp.lcp.option
 
 import bread_experts_group.Writable
-import bread_experts_group.util.ToStringUtil
+import bread_experts_group.util.ToStringUtil.SmartToString
 import java.io.InputStream
 import java.io.OutputStream
 
-sealed class LCPConfigurationOption(val type: ConfigurationOptionType) : ToStringUtil.SmartToString(), Writable {
+sealed class LCPConfigurationOption(val type: ConfigurationOptionType) : SmartToString(), Writable {
 	enum class ConfigurationOptionType(val code: Int) {
 		MAXIMUM_RECEIVE_UNIT(1),
 		ASYNCHRONOUS_CONTROL_CHARACTER_MAP(2),
@@ -24,6 +24,9 @@ sealed class LCPConfigurationOption(val type: ConfigurationOptionType) : ToStrin
 		stream.write(this.type.code)
 		stream.write(this.calculateLength())
 	}
+
+	final override fun gist(): String = "OPT [${calculateLength()}] $type : ${optionGist()}"
+	abstract fun optionGist(): String
 
 	companion object {
 		fun read(stream: InputStream): LCPConfigurationOption {

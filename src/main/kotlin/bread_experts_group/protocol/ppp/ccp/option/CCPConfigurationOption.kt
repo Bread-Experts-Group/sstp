@@ -1,11 +1,11 @@
 package bread_experts_group.protocol.ppp.ccp.option
 
 import bread_experts_group.Writable
-import bread_experts_group.util.ToStringUtil
+import bread_experts_group.util.ToStringUtil.SmartToString
 import java.io.InputStream
 import java.io.OutputStream
 
-sealed class CCPConfigurationOption(val type: ConfigurationOptionType) : ToStringUtil.SmartToString(), Writable {
+sealed class CCPConfigurationOption(val type: ConfigurationOptionType) : SmartToString(), Writable {
 	enum class ConfigurationOptionType(val code: Int) {
 		BSD_COMPRESS(21),
 		MVRCA_MAGNALINK(24),
@@ -19,6 +19,10 @@ sealed class CCPConfigurationOption(val type: ConfigurationOptionType) : ToStrin
 	override fun write(stream: OutputStream) {
 		stream.write(this.type.code)
 		stream.write(this.calculateLength())
+	}
+
+	override fun gist(): String {
+		TODO("Not yet implemented")
 	}
 
 	companion object {

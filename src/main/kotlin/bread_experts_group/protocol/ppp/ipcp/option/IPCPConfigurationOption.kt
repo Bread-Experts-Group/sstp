@@ -23,6 +23,9 @@ abstract class IPCPConfigurationOption(
 		stream.write(this.calculateLength())
 	}
 
+	override fun gist(): String = "OPT [${calculateLength()}] $type : ${optionGist()}"
+	abstract fun optionGist(): String
+
 	companion object {
 		fun read(stream: InputStream): IPCPConfigurationOption {
 			val type = InternetProtocolOptionType.mapping.getValue(stream.read())

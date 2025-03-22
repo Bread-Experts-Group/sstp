@@ -21,6 +21,10 @@ abstract class IPv6CPConfigurationOption(
 		stream.write(this.calculateLength())
 	}
 
+	override fun gist(): String {
+		TODO("Not yet implemented")
+	}
+
 	companion object {
 		fun read(stream: InputStream): IPv6CPConfigurationOption {
 			val type = InternetProtocolV6OptionType.mapping.getValue(stream.read())

@@ -13,6 +13,11 @@ class SSTPCryptoBindingAttribute(
 ) : SSTPControlMessageAttribute(AttributeType.SSTP_ATTRIB_CRYPTO_BINDING) {
 	override fun calculateLength(): Int = 0x068
 
+	override fun attribGist(): String = "$hashProtocol\n" +
+			"    # NONCE: [${nonce.size}]\n" +
+			"    # HASH: [${hash.size}]\n" +
+			"    # COMPOUND MAC: [${compoundMAC.size}]"
+
 	companion object {
 		fun read(stream: InputStream): SSTPCryptoBindingAttribute {
 			stream.read24()

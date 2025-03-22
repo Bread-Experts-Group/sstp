@@ -20,14 +20,17 @@ sealed class InternetProtocolControlProtocolFrame(
 		stream.write16(this.calculateLength())
 	}
 
+	final override fun protocolGist(): String = "$type, ID: $identifier\n${ipcpGist()}"
+	abstract fun ipcpGist(): String
+
 	companion object {
 		fun read(stream: InputStream): InternetProtocolControlProtocolFrame {
 			val code = NCPControlType.Companion.mapping.getValue(stream.read())
 			val id = stream.read()
 			val length = stream.read16() - 4
 			return when (code) {
-				NCPControlType.CONFIGURE_REQUEST -> IPCPRequest.read(stream, id, length)
-				NCPControlType.CONFIGURE_ACK -> IPCPAcknowledgement.read(stream, id, length)
+				NCPControlType.CONFIGURE_REQUEST -> IPCPRequest(stream, length, id)
+				NCPControlType.CONFIGURE_ACK -> IPCPAcknowledgement(stream, length, id)
 				NCPControlType.TERMINATE_REQUEST -> IPCPTerminationRequest.read(stream, id, length)
 				else -> TODO(code.toString())
 			}

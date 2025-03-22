@@ -2,6 +2,8 @@ package bread_experts_group.util
 
 import kotlin.random.Random
 
+var verbosity = -1
+
 fun stringToInt(str: String): Int =
 	if (str.substring(0, 1) == "0x") str.substring(2).toInt(16)
 	else if (str.substring(0, 1) == "0b") str.substring(2).toInt(2)
@@ -21,7 +23,8 @@ enum class Flags(
 	AUTHENTICATION_FAILURE_MESSAGE("auth_bad_msg", false, false, "Authentication FAIL, %s"),
 	PAP_USERNAME("pap_username", false, true, null),
 	PAP_PASSPHRASE("pap_passphrase", true, true, null),
-	NETWORK_INTERFACE_LIST("ni_list", false, false, false, ::stringToBoolean);
+	NETWORK_INTERFACE_LIST("ni_list", false, false, false, ::stringToBoolean),
+	VERBOSITY("verbosity", false, false, 0, ::stringToInt);
 
 	companion object {
 		val mapping = entries.associateBy { it.flagName }

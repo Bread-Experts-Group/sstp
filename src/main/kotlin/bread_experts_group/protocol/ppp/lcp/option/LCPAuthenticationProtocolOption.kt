@@ -23,6 +23,8 @@ class LCPAuthenticationProtocolOption(
 		stream.write16(protocol.code)
 	}
 
+	override fun optionGist(): String = protocol.name
+
 	companion object {
 		fun read(stream: InputStream): LCPAuthenticationProtocolOption {
 			return LCPAuthenticationProtocolOption(AuthenticationProtocol.mapping.getValue(stream.read16()))

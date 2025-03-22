@@ -13,6 +13,8 @@ class TCPLastTimestampsOption(val sender: Int, val lastMine: Int) : TCPOption(TC
 		stream.write32(lastMine)
 	}
 
+	override fun optionGist(): String = "SENDER: $sender, LAST MINE: $lastMine"
+
 	companion object {
 		fun read(stream: InputStream) = TCPLastTimestampsOption(stream.read32(), stream.read32())
 	}

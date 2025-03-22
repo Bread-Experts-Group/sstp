@@ -17,6 +17,8 @@ class LCPAsynchronousControlCharacterMapOption(
 		stream.write32(bits)
 	}
 
+	override fun optionGist(): String = "[${map.values.joinToString(",") { if (it) "1" else "0" }}]"
+
 	companion object {
 		fun read(stream: InputStream): LCPAsynchronousControlCharacterMapOption {
 			val map = stream.read32()

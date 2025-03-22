@@ -12,4 +12,6 @@ open class PPPEncapsulate<T : PointToPointProtocolFrame>(val pppFrame: T) : SSTP
 		super.write(stream)
 		stream.flush()
 	}
+
+	override fun gist(): String = "${super.gist()}\n${pppFrame.gist()}"
 }

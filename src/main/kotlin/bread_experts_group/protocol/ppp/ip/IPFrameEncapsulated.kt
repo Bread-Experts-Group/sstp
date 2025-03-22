@@ -13,6 +13,8 @@ class IPFrameEncapsulated(val frame: InternetProtocolFrame) : PointToPointProtoc
 		frame.write(stream)
 	}
 
+	override fun protocolGist(): String = frame.gist()
+
 	companion object {
 		fun read(stream: InputStream): IPFrameEncapsulated {
 			return IPFrameEncapsulated(InternetProtocolFrame.read(stream))

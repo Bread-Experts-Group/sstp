@@ -16,6 +16,8 @@ class IPCPTerminationRequest(
 		stream.flush()
 	}
 
+	override fun ipcpGist(): String = "DATA: \"${data.decodeToString()}\""
+
 	companion object {
 		fun read(stream: InputStream, id: Int, length: Int): IPCPTerminationRequest = IPCPTerminationRequest(
 			id, stream.readNBytes(length)

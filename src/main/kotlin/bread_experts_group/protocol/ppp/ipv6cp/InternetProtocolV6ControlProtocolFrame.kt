@@ -20,6 +20,10 @@ sealed class InternetProtocolV6ControlProtocolFrame(
 		stream.write16(this.calculateLength())
 	}
 
+	override fun protocolGist(): String {
+		TODO("Not yet implemented")
+	}
+
 	companion object {
 		fun read(stream: InputStream): InternetProtocolV6ControlProtocolFrame {
 			val code = NCPControlType.Companion.mapping.getValue(stream.read())

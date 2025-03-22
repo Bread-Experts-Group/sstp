@@ -15,6 +15,8 @@ class IPCPAddressOption(
 		stream.write(address.address)
 	}
 
+	override fun optionGist(): String = address.toString()
+
 	companion object {
 		fun read(stream: InputStream): IPCPAddressOption = IPCPAddressOption(stream.readInet4())
 	}

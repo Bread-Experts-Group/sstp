@@ -25,6 +25,9 @@ sealed class SSTPControlMessageAttribute(val type: AttributeType) : SmartToStrin
 		stream.write16(this.calculateLength())
 	}
 
+	final override fun gist(): String = "ATTRIB [${calculateLength()}] $type : ${attribGist()}"
+	abstract fun attribGist(): String
+
 	companion object {
 		fun read(stream: InputStream): SSTPControlMessageAttribute {
 			stream.read()
