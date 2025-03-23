@@ -4,10 +4,13 @@ import kotlin.random.Random
 
 var verbosity = -1
 
-fun stringToInt(str: String): Int =
-	if (str.substring(0, 1) == "0x") str.substring(2).toInt(16)
-	else if (str.substring(0, 1) == "0b") str.substring(2).toInt(2)
-	else str.toInt()
+fun stringToLong(str: String): Long =
+	if (str.substring(0, 1) == "0x") str.substring(2).toLong(16)
+	else if (str.substring(0, 1) == "0b") str.substring(2).toLong(2)
+	else str.toLong()
+
+fun stringToInt(str: String): Int = stringToLong(str).toInt()
+
 
 fun stringToBoolean(str: String): Boolean = str.lowercase().let { it == "true" || it == "yes" || it == "1" }
 
@@ -23,6 +26,10 @@ enum class Flags(
 	AUTHENTICATION_FAILURE_MESSAGE("auth_bad_msg", false, false, "Authentication FAIL, %s"),
 	PAP_USERNAME("pap_username", false, true, null),
 	PAP_PASSPHRASE("pap_passphrase", true, true, null),
+	AUTHENTICATION_TRIES("auth_tries", false, false, 3, ::stringToInt),
+	UDP_TIMEOUT("udp_timeout", false, false, ::stringToInt),
+	TCP_TIMEOUT("tcp_timeout", false, false, ::stringToInt),
+	ICMP_TIMEOUT("icmp_timeout", false, false, ::stringToInt),
 	NETWORK_INTERFACE_LIST("ni_list", false, false, false, ::stringToBoolean),
 	VERBOSITY("verbosity", false, false, 0, ::stringToInt),
 	SECURE_RANDOM_GENERATOR("random", false, false, null);

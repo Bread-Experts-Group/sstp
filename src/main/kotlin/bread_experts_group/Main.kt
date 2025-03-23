@@ -1,15 +1,11 @@
 package bread_experts_group
 
-import bread_experts_group.protocol.dhcp.DynamicHostConfigurationProtocolFrame
-import bread_experts_group.protocol.dhcp.DynamicHostConfigurationProtocolFrame.*
-import bread_experts_group.protocol.dhcp.option.DHCPHostName
-import bread_experts_group.protocol.dhcp.option.DHCPMessageType
-import bread_experts_group.protocol.dhcp.option.DHCPMessageType.DHCPMessageTypes
-import bread_experts_group.protocol.dhcp.option.DHCPRequestAddress
-import bread_experts_group.protocol.dhcp.option.DHCPServerAddress
 import bread_experts_group.util.*
 import java.io.*
-import java.net.*
+import java.net.DatagramSocket
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.NetworkInterface
 import java.security.KeyStore
 import java.security.SecureRandom
 import java.security.Security
@@ -50,77 +46,77 @@ fun main(args: Array<String>) {
 		logInterfaceDetails(NetworkInterface.getByInetAddress(it.localAddress))
 	}
 	logLn("===============================")
-	logLn("Doing DHCP test")
-	logLn("-------------------------------")
-	val socket = MulticastSocket(68)
-	socket.broadcast = true
-	val hdwr = byteArrayOf(
-		0x00, 0x05, 0x3C, 0x04,
-		(0x8D).toByte(), 0x59, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00
-	)
-	ByteArrayOutputStream().use {
-		val discovery = DynamicHostConfigurationProtocolFrame(
-			DHCPOperationType.BOOTREQUEST,
-			DHCPHardwareType.ETHERNET_10MB,
-			6,
-			0,
-			Random().nextInt(),
-			0,
-			listOf(DHCPFlag.BROADCAST),
-			inet4(0, 0, 0, 0),
-			inet4(0, 0, 0, 0),
-			inet4(0, 0, 0, 0),
-			inet4(0, 0, 0, 0),
-			hdwr,
-			listOf(DHCPMessageType(DHCPMessageTypes.DHCPDISCOVER))
-		)
-		discovery.write(it)
-		logLn("< $discovery")
-		val send = DatagramPacket(it.toByteArray(), it.size(), inet4(192, 168, 0, 255), 67)
-		socket.send(send)
-	}
-	val offer = ByteArray(512).let {
-		val receive = DatagramPacket(it, it.size)
-		socket.receive(receive)
-		val data = DynamicHostConfigurationProtocolFrame.read(ByteArrayInputStream(it))
-		logLn("> $data")
-		data
-	}
-	ByteArrayOutputStream().use {
-		val request = DynamicHostConfigurationProtocolFrame(
-			DHCPOperationType.BOOTREQUEST,
-			DHCPHardwareType.ETHERNET_10MB,
-			6,
-			0,
-			Random().nextInt(),
-			0,
-			listOf(DHCPFlag.BROADCAST),
-			inet4(0, 0, 0, 0),
-			inet4(0, 0, 0, 0),
-			inet4(0, 0, 0, 0),
-			inet4(0, 0, 0, 0),
-			hdwr,
-			listOf(
-				DHCPMessageType(DHCPMessageTypes.DHCPREQUEST),
-				DHCPServerAddress(offer.serverIP),
-				DHCPRequestAddress(offer.yourIP),
-				DHCPHostName("BREADXPERTSGRP")
-			)
-		)
-		request.write(it)
-		logLn("< $request")
-		val send = DatagramPacket(it.toByteArray(), it.size(), inet4(192, 168, 0, 255), 67)
-		socket.send(send)
-	}
-	ByteArray(512).let {
-		val receive = DatagramPacket(it, it.size)
-		socket.receive(receive)
-		val data = DynamicHostConfigurationProtocolFrame.read(ByteArrayInputStream(it))
-		logLn("> $data")
-		data
-	}
+//	logLn("Doing DHCP test")
+//	logLn("-------------------------------")
+//	val socket = MulticastSocket(68)
+//	socket.broadcast = true
+//	val hdwr = byteArrayOf(
+//		0x00, 0x05, 0x3C, 0x04,
+//		(0x8D).toByte(), 0x59, 0x00, 0x00,
+//		0x00, 0x00, 0x00, 0x00,
+//		0x00, 0x00, 0x00, 0x00
+//	)
+//	ByteArrayOutputStream().use {
+//		val discovery = DynamicHostConfigurationProtocolFrame(
+//			DHCPOperationType.BOOTREQUEST,
+//			DHCPHardwareType.ETHERNET_10MB,
+//			6,
+//			0,
+//			Random().nextInt(),
+//			0,
+//			listOf(DHCPFlag.BROADCAST),
+//			inet4(0, 0, 0, 0),
+//			inet4(0, 0, 0, 0),
+//			inet4(0, 0, 0, 0),
+//			inet4(0, 0, 0, 0),
+//			hdwr,
+//			listOf(DHCPMessageType(DHCPMessageTypes.DHCPDISCOVER))
+//		)
+//		discovery.write(it)
+//		logLn("< $discovery")
+//		val send = DatagramPacket(it.toByteArray(), it.size(), inet4(192, 168, 0, 255), 67)
+//		socket.send(send)
+//	}
+//	val offer = ByteArray(512).let {
+//		val receive = DatagramPacket(it, it.size)
+//		socket.receive(receive)
+//		val data = DynamicHostConfigurationProtocolFrame.read(ByteArrayInputStream(it))
+//		logLn("> $data")
+//		data
+//	}
+//	ByteArrayOutputStream().use {
+//		val request = DynamicHostConfigurationProtocolFrame(
+//			DHCPOperationType.BOOTREQUEST,
+//			DHCPHardwareType.ETHERNET_10MB,
+//			6,
+//			0,
+//			Random().nextInt(),
+//			0,
+//			listOf(DHCPFlag.BROADCAST),
+//			inet4(0, 0, 0, 0),
+//			inet4(0, 0, 0, 0),
+//			inet4(0, 0, 0, 0),
+//			inet4(0, 0, 0, 0),
+//			hdwr,
+//			listOf(
+//				DHCPMessageType(DHCPMessageTypes.DHCPREQUEST),
+//				DHCPServerAddress(offer.serverIP),
+//				DHCPRequestAddress(offer.yourIP),
+//				DHCPHostName("BREADXPERTSGRP")
+//			)
+//		)
+//		request.write(it)
+//		logLn("< $request")
+//		val send = DatagramPacket(it.toByteArray(), it.size(), inet4(192, 168, 0, 255), 67)
+//		socket.send(send)
+//	}
+//	ByteArray(512).let {
+//		val receive = DatagramPacket(it, it.size)
+//		socket.receive(receive)
+//		val data = DynamicHostConfigurationProtocolFrame.read(ByteArrayInputStream(it))
+//		logLn("> $data")
+//		data
+//	}
 	logLn("===============================")
 	logLn("Key store setup ...")
 	val password = (singleArgs.getValue(Flags.KEYSTORE_PASSPHRASE) as String).toCharArray()
