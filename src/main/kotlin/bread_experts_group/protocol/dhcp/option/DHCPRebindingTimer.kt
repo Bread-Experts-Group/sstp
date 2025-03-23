@@ -9,7 +9,7 @@ class DHCPRebindingTimer(
 	val rebindindTimerValue: Int
 ) : DHCPOption(DHCPOptionType.REBINDING_TIMER) {
 	override fun optionGist(): String = "${rebindindTimerValue}s"
-	override fun calculateLength(): Int = 6
+	override fun calculateLength(): Int = 4
 
 	override fun write(stream: OutputStream) {
 		super.write(stream)

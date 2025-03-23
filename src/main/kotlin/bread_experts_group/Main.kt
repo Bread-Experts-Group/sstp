@@ -2,8 +2,11 @@ package bread_experts_group
 
 import bread_experts_group.protocol.dhcp.DynamicHostConfigurationProtocolFrame
 import bread_experts_group.protocol.dhcp.DynamicHostConfigurationProtocolFrame.*
+import bread_experts_group.protocol.dhcp.option.DHCPHostName
 import bread_experts_group.protocol.dhcp.option.DHCPMessageType
 import bread_experts_group.protocol.dhcp.option.DHCPMessageType.DHCPMessageTypes
+import bread_experts_group.protocol.dhcp.option.DHCPRequestAddress
+import bread_experts_group.protocol.dhcp.option.DHCPServerAddress
 import bread_experts_group.util.*
 import java.io.*
 import java.net.*
@@ -49,37 +52,74 @@ fun main(args: Array<String>) {
 	logLn("===============================")
 	logLn("Doing DHCP test")
 	logLn("-------------------------------")
-	val socket = DatagramSocket(68)
+	val socket = MulticastSocket(68)
+	socket.broadcast = true
+	val hdwr = byteArrayOf(
+		0x00, 0x05, 0x3C, 0x04,
+		(0x8D).toByte(), 0x59, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00
+	)
 	ByteArrayOutputStream().use {
-		val dhcp = DynamicHostConfigurationProtocolFrame(
+		val discovery = DynamicHostConfigurationProtocolFrame(
 			DHCPOperationType.BOOTREQUEST,
 			DHCPHardwareType.ETHERNET_10MB,
 			6,
 			0,
-			0,
+			Random().nextInt(),
 			0,
 			listOf(DHCPFlag.BROADCAST),
 			inet4(0, 0, 0, 0),
 			inet4(0, 0, 0, 0),
 			inet4(0, 0, 0, 0),
 			inet4(0, 0, 0, 0),
-			byteArrayOf(
-				0x00, 0x05, 0x3C, 0x04,
-				(0x8D).toByte(), 0x59, 0x00, 0x00,
-				0x00, 0x00, 0x00, 0x00,
-				0x00, 0x00, 0x00, 0x00
-			),
+			hdwr,
 			listOf(DHCPMessageType(DHCPMessageTypes.DHCPDISCOVER))
 		)
-		dhcp.write(it)
-		logLn("< $dhcp")
+		discovery.write(it)
+		logLn("< $discovery")
 		val send = DatagramPacket(it.toByteArray(), it.size(), inet4(192, 168, 0, 255), 67)
-		socket.broadcast = true
 		socket.send(send)
-		val data = ByteArray(512)
-		val receive = DatagramPacket(data, data.size)
+	}
+	val offer = ByteArray(512).let {
+		val receive = DatagramPacket(it, it.size)
 		socket.receive(receive)
-		logLn("> ${DynamicHostConfigurationProtocolFrame.read(ByteArrayInputStream(data))}")
+		val data = DynamicHostConfigurationProtocolFrame.read(ByteArrayInputStream(it))
+		logLn("> $data")
+		data
+	}
+	ByteArrayOutputStream().use {
+		val request = DynamicHostConfigurationProtocolFrame(
+			DHCPOperationType.BOOTREQUEST,
+			DHCPHardwareType.ETHERNET_10MB,
+			6,
+			0,
+			Random().nextInt(),
+			0,
+			listOf(DHCPFlag.BROADCAST),
+			inet4(0, 0, 0, 0),
+			inet4(0, 0, 0, 0),
+			inet4(0, 0, 0, 0),
+			inet4(0, 0, 0, 0),
+			hdwr,
+			listOf(
+				DHCPMessageType(DHCPMessageTypes.DHCPREQUEST),
+				DHCPServerAddress(offer.serverIP),
+				DHCPRequestAddress(offer.yourIP),
+				DHCPHostName("BREADXPERTSGRP")
+			)
+		)
+		request.write(it)
+		logLn("< $request")
+		val send = DatagramPacket(it.toByteArray(), it.size(), inet4(192, 168, 0, 255), 67)
+		socket.send(send)
+	}
+	ByteArray(512).let {
+		val receive = DatagramPacket(it, it.size)
+		socket.receive(receive)
+		val data = DynamicHostConfigurationProtocolFrame.read(ByteArrayInputStream(it))
+		logLn("> $data")
+		data
 	}
 	logLn("===============================")
 	logLn("Key store setup ...")
@@ -198,8 +238,8 @@ fun main(args: Array<String>) {
 			)
 		}.uncaughtExceptionHandler = Thread.UncaughtExceptionHandler { thread, exp ->
 			when (exp) {
-				is SSLException -> logLn(PALE_PINKISH_RED, "TLS/SSL failure; ${exp.message}")
-				else -> logLn(PALE_RED, exp.stackTraceToString())
+				is SSLException -> logLn(PALE_PINKISH_RED, "TLS/SSL connection failure; ${exp.message}")
+				else -> logLn(PALE_RED, "Server failure outside of operation; ${exp.message}")
 			}
 			newSocket.close()
 		}

@@ -9,7 +9,7 @@ class DHCPRenewalTimer(
 	val renewalTimerValue: Int
 ) : DHCPOption(DHCPOptionType.RENEWAL_TIMER) {
 	override fun optionGist(): String = "${renewalTimerValue}s"
-	override fun calculateLength(): Int = 6
+	override fun calculateLength(): Int = 4
 
 	override fun write(stream: OutputStream) {
 		super.write(stream)

@@ -15,7 +15,7 @@ class DHCPNetworkTimeServers(
 		}
 	}
 
-	override fun calculateLength(): Int = 2 + (servers.size * 4)
+	override fun calculateLength(): Int = servers.size * 4
 
 	override fun write(stream: OutputStream) {
 		super.write(stream)

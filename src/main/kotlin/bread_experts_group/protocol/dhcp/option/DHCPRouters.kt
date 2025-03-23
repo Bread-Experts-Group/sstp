@@ -15,7 +15,7 @@ class DHCPRouters(
 		}
 	}
 
-	override fun calculateLength(): Int = 2 + (routers.size * 4)
+	override fun calculateLength(): Int = routers.size * 4
 
 	override fun write(stream: OutputStream) {
 		super.write(stream)

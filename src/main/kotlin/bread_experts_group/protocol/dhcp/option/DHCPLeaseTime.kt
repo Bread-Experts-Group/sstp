@@ -9,7 +9,7 @@ class DHCPLeaseTime(
 	val leaseTimeSeconds: Int
 ) : DHCPOption(DHCPOptionType.LEASE_TIME) {
 	override fun optionGist(): String = "${leaseTimeSeconds}s"
-	override fun calculateLength(): Int = 6
+	override fun calculateLength(): Int = 4
 
 	override fun write(stream: OutputStream) {
 		super.write(stream)

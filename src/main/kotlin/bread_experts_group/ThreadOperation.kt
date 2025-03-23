@@ -554,12 +554,22 @@ fun operation(
 			}
 		} catch (e: Exception) {
 			when (e) {
-				is EOFException, is SocketException -> null
-				else -> abort(Status.ATTRIB_STATUS_NO_ERROR) // Internal Server Error
+				is EOFException -> logLn(PALE_RED, "Session ended (client disconnect).")
+				is SocketException -> logLn(PALE_RED, "Session ended (socket error/server disconnect); ${e.message}.")
+				else -> {
+					try {
+						abort(Status.ATTRIB_STATUS_NO_ERROR)
+					} catch (w: Exception) {
+						when (w) {
+							is EOFException -> logLn("Failed to write abort; client unavailable.")
+							else -> logLn("Failed to write abort; ${e.message}")
+						}
+					}
+					logLn("Session ended (server failure); ${e.message}")
+				}
 			}
 			break
 		}
 	}
 	socket.close()
-	logLn(PALE_RED, "Session ended.")
 }

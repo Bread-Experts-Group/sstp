@@ -8,8 +8,8 @@ import java.net.Inet4Address
 class DHCPDomainNameServer(
 	val address: Inet4Address
 ) : DHCPOption(DHCPOptionType.DOMAIN_NAME_SERVER) {
-	override fun optionGist(): String = "IP: $address"
-	override fun calculateLength(): Int = 6
+	override fun optionGist(): String = "$address"
+	override fun calculateLength(): Int = 4
 
 	override fun write(stream: OutputStream) {
 		super.write(stream)

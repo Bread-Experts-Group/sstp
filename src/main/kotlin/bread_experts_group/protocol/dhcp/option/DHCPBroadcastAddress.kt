@@ -10,7 +10,7 @@ class DHCPBroadcastAddress(
 	val broadcastAddress: Inet4Address
 ) : DHCPOption(DHCPOptionType.BROADCAST_ADDRESS) {
 	override fun optionGist(): String = broadcastAddress.toString()
-	override fun calculateLength(): Int = 6
+	override fun calculateLength(): Int = 4
 
 	override fun write(stream: OutputStream) {
 		super.write(stream)

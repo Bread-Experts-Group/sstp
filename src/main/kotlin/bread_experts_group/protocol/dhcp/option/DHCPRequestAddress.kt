@@ -5,9 +5,9 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.net.Inet4Address
 
-class DHCPServerAddress(
+class DHCPRequestAddress(
 	val address: Inet4Address
-) : DHCPOption(DHCPOptionType.SERVER_ADDRESS) {
+) : DHCPOption(DHCPOptionType.REQUEST_ADDRESS) {
 	override fun optionGist(): String = "$address"
 	override fun calculateLength(): Int = 4
 
@@ -17,6 +17,6 @@ class DHCPServerAddress(
 	}
 
 	companion object {
-		fun read(stream: InputStream): DHCPServerAddress = DHCPServerAddress(stream.readInet4())
+		fun read(stream: InputStream): DHCPRequestAddress = DHCPRequestAddress(stream.readInet4())
 	}
 }

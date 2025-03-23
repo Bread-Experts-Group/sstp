@@ -10,7 +10,7 @@ class DHCPSubnetMask(
 	val subnetMask: Inet4Address
 ) : DHCPOption(DHCPOptionType.SUBNET_MASK) {
 	override fun optionGist(): String = subnetMask.toString()
-	override fun calculateLength(): Int = 6
+	override fun calculateLength(): Int = 4
 
 	override fun write(stream: OutputStream) {
 		super.write(stream)
