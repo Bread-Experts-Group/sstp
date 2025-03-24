@@ -10,7 +10,6 @@ import java.security.KeyStore
 import java.security.SecureRandom
 import java.security.Security
 import java.util.*
-import java.util.concurrent.ConcurrentLinkedQueue
 import javax.net.ssl.*
 import kotlin.system.exitProcess
 
@@ -217,12 +216,13 @@ fun main(args: Array<String>) {
 					}
 				},
 				object : OutputStream() {
-					val buffer = ConcurrentLinkedQueue<Byte>()
-					override fun write(b: Int) {
+					val buffer = mutableListOf<Byte>()
+					override fun write(b: Int): Unit = synchronized(buffer) {
 						buffer.add(b.toByte())
 					}
 
-					override fun flush() {
+					override fun flush(): Unit = synchronized(buffer) {
+						if (buffer.isEmpty()) throw IllegalStateException("Empty buffer")
 						newSocket.outputStream.write(buffer.toByteArray())
 						buffer.clear()
 					}
@@ -232,10 +232,10 @@ fun main(args: Array<String>) {
 				newSocket,
 				random
 			)
-		}.uncaughtExceptionHandler = Thread.UncaughtExceptionHandler { thread, exp ->
-			when (exp) {
-				is SSLException -> logLn(PALE_PINKISH_RED, "TLS/SSL connection failure; ${exp.message}")
-				else -> logLn(PALE_RED, "Server failure outside of operation; ${exp.message}")
+		}.uncaughtExceptionHandler = Thread.UncaughtExceptionHandler { thread, e ->
+			when (e) {
+				is SSLException -> logLn(PALE_PINKISH_RED, "TLS/SSL connection failure; ${e.stackTraceToString()}")
+				else -> logLn(PALE_RED, "Server failure outside of operation; ${e.stackTraceToString()}")
 			}
 			newSocket.close()
 		}

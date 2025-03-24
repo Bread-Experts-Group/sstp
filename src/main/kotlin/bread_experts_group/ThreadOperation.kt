@@ -117,7 +117,6 @@ fun operation(
 				logLn(LIGHT_PINK, "< $it")
 			}
 		}
-		handleIPCPTermination(null, data)
 		lcpThem = null
 		lcpMe = null
 		magicMe = 0
@@ -150,12 +149,9 @@ fun operation(
 				IPCPNonAcknowledgement(
 					listOf(
 						IPCPAddressOption(
-							inet4(
-								0,
-								random.nextInt(1, 255),
-								random.nextInt(1, 255),
-								random.nextInt(1, 255)
-							)
+							Inet4Address.getByName(
+								singleArgs.getValue(Flags.VPN_REMOTE_ADDRESS) as String
+							) as Inet4Address
 						)
 					),
 					ppp.identifier
@@ -172,12 +168,9 @@ fun operation(
 			ipcpThem = it.pppFrame
 			logLn(TEAL, "< $it")
 		}
-		ipcpMyAddress = inet4(
-			0,
-			random.nextInt(1, 255),
-			random.nextInt(1, 255),
-			random.nextInt(1, 255)
-		)
+		ipcpMyAddress = Inet4Address.getByName(
+			singleArgs.getValue(Flags.VPN_LOCAL_ADDRESS) as String
+		) as Inet4Address
 		PPPEncapsulate(
 			IPCPRequest(
 				listOf(IPCPAddressOption(ipcpMyAddress!!)),
@@ -202,17 +195,18 @@ fun operation(
 
 	data class TCPConnection(
 		val socket: Socket,
-		val buffer: MutableList<ByteArray> = mutableListOf(),
+		val sendBuffer: MutableList<ByteArray> = mutableListOf(),
+		var ending: Boolean = false,
 		var ack: Int = -1,
 		var lastAck: Int = -1,
-		var seq: Int = -1,
+		var seq: Int = -1
 	) {
 		var removeEntry: Boolean = false
 			private set
 
 		fun close() {
 			this.socket.close()
-			this.buffer.clear()
+			this.sendBuffer.clear()
 			this.removeEntry = true
 		}
 	}
@@ -379,7 +373,7 @@ fun operation(
 									when (ppp.frame) {
 										is ICMPFrame -> when (ppp.frame) {
 											is ICMPEcho -> {
-												if (ppp.frame.type == ICMPFrame.ICMPType.ECHO_REPLY) {
+												if (ppp.frame.type == ICMPFrame.ICMPType.ECHO_REQUEST) {
 													logLn(PALE_PINK, "> ${PPPEncapsulate(ppp)}")
 													val actualReq = actualDestination.isReachable(
 														singleArgs.getValue(Flags.ICMP_TIMEOUT) as Int
@@ -411,17 +405,20 @@ fun operation(
 												connection: TCPConnection,
 												vararg flag: TCPFlag,
 												data: ByteArray = byteArrayOf()
-											) = sendTCP(
-												TCPFrame(
-													0, 0, 0, listOf(IPFlag.DONT_FRAGMENT),
-													0, 64, ppp.frame.destination, ppp.frame.source,
-													ppp.frame.destPort, ppp.frame.sourcePort,
-													connection.seq, connection.ack,
-													listOf(*flag),
-													64240, 0, 0, emptyList(),
-													data
+											) {
+												sendTCP(
+													TCPFrame(
+														0, 0, 0, listOf(IPFlag.DONT_FRAGMENT),
+														0, 64, ppp.frame.destination, ppp.frame.source,
+														ppp.frame.destPort, ppp.frame.sourcePort,
+														connection.seq, connection.ack,
+														listOf(*flag),
+														64240, 0, 0, emptyList(),
+														data
+													)
 												)
-											)
+												connection.seq += data.size
+											}
 
 											fun sendReset() {
 												sendTCP(
@@ -439,6 +436,11 @@ fun operation(
 											}
 
 											logLn(PALE_PINKISH_RED, "> ${PPPEncapsulate(ppp)}")
+											if (ppp.frame.tcpFlags.contains(TCPFlag.RST)) {
+												tcp.remove(ppp.frame.sourcePort)
+												continue
+											}
+
 											val connection = tcp[ppp.frame.sourcePort]
 											if (connection == null) {
 												if (ppp.frame.flags.size == 1 && ppp.frame.tcpFlags[0] == TCPFlag.SYN) {
@@ -452,17 +454,19 @@ fun operation(
 															singleArgs.getValue(Flags.TCP_TIMEOUT) as Int
 														)
 														val newConnection = TCPConnection(socket)
-														Thread.ofPlatform().start {
-															val array = ByteArray(200)
+														Thread.ofVirtual().start {
+															val buffer = ByteArray(40)
 															try {
 																while (true) {
-																	val readCnt = socket.inputStream.read(array)
-																	if (readCnt == -1) break
-																	sendFrame(
-																		newConnection, TCPFlag.ACK, TCPFlag.PSH,
-																		data = array.sliceArray(0 until readCnt)
-																	)
-																	newConnection.seq += readCnt
+																	val readCount = socket.inputStream.read(buffer)
+																	if (readCount == -1) break
+																	synchronized(newConnection) {
+																		val send = buffer.sliceArray(0 until readCount)
+																		sendFrame(
+																			newConnection, TCPFlag.ACK, TCPFlag.PSH,
+																			data = send
+																		)
+																	}
 																}
 															} catch (_: SocketException) {
 															}
@@ -479,13 +483,17 @@ fun operation(
 														sendICMPUnreachable(1, ppp.frame)
 													}
 												} else sendReset()
-											} else {
+											} else synchronized(connection) {
 												var send = true
+												var data = byteArrayOf()
 												val flags = mutableListOf<TCPFlag>()
-												if (ppp.frame.tcpFlags.contains(TCPFlag.ACK)) {
+												if (
+													ppp.frame.tcpFlags.contains(TCPFlag.ACK) &&
+													!ppp.frame.tcpFlags.contains(TCPFlag.SYN)
+												) {
 													if (ppp.frame.data.isNotEmpty()) {
 														connection.ack += ppp.frame.data.size
-														connection.buffer.add(ppp.frame.data)
+														connection.sendBuffer.add(ppp.frame.data)
 														flags.add(TCPFlag.ACK)
 													}
 													if (connection.removeEntry) tcp.remove(ppp.frame.sourcePort)
@@ -495,7 +503,7 @@ fun operation(
 												}
 												if (ppp.frame.tcpFlags.contains(TCPFlag.PSH)) {
 													try {
-														connection.buffer.removeIf {
+														connection.sendBuffer.removeIf {
 															connection.socket.outputStream.write(it)
 															true
 														}
@@ -510,8 +518,11 @@ fun operation(
 													flags.add(TCPFlag.FIN)
 													connection.close()
 												}
-												if (send && flags.isNotEmpty())
-													sendFrame(connection, *flags.toTypedArray())
+												if (send && flags.isNotEmpty()) sendFrame(
+													connection,
+													*flags.toTypedArray(),
+													data = data
+												)
 											}
 										}
 
@@ -567,6 +578,8 @@ fun operation(
 
 								is LCPTermination -> handleLCPTermination(ppp, ppp.data)
 								is IPCPTermination -> handleIPCPTermination(ppp, ppp.data)
+								is LCPDiscardRequest -> {}
+								is LCPProtocolRejection -> {}
 								else -> TODO(ppp.gist())
 							}
 						}
@@ -584,17 +597,17 @@ fun operation(
 		} catch (e: Exception) {
 			when (e) {
 				is EOFException -> logLn(PALE_RED, "Session ended (client disconnect).")
-				is SocketException -> logLn(PALE_RED, "Session ended (socket error/server disconnect); ${e.message}.")
+				is SocketException -> logLn(PALE_RED, "Session ended (socket error/server disconnect); ${e.stackTraceToString()}")
 				else -> {
 					try {
 						abort(Status.ATTRIB_STATUS_NO_ERROR)
 					} catch (w: Exception) {
 						when (w) {
-							is EOFException -> logLn("Failed to write abort; client unavailable.")
-							else -> logLn("Failed to write abort; ${e.message}")
+							is EOFException -> logLn(PALE_RED, "Failed to write abort; client unavailable.")
+							else -> logLn(PALE_RED, "Failed to write abort; ${e.stackTraceToString()}")
 						}
 					}
-					logLn("Session ended (server failure); ${e.message}")
+					logLn(PALE_RED, "Session ended (server failure); ${e.stackTraceToString()}")
 				}
 			}
 			break

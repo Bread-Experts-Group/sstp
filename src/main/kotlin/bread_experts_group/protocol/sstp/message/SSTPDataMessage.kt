@@ -8,7 +8,6 @@ open class SSTPDataMessage(val data: ByteArray) : SSTPMessage() {
 	override fun write(stream: OutputStream) {
 		super.write(stream)
 		stream.write(this.data)
-		stream.flush()
 	}
 
 	override fun gist(): String = super.gist() + "DATA [${data.size}]"

@@ -8,7 +8,7 @@ import java.io.OutputStream
 open class PPPEncapsulate<T : PointToPointProtocolFrame>(val pppFrame: T) : SSTPDataMessage(
 	ByteArrayOutputStream().use { pppFrame.write(it); it.toByteArray() }
 ) {
-	override fun write(stream: OutputStream) {
+	override fun write(stream: OutputStream): Unit = synchronized(stream) {
 		super.write(stream)
 		stream.flush()
 	}

@@ -9,7 +9,7 @@ class LCPProtocolRejection(
 	identifier: Int,
 	val magic: Int,
 	val data: ByteArray
-) : LinkControlProtocolFrame(identifier, LCPControlType.DISCARD_REQUEST) {
+) : LinkControlProtocolFrame(identifier, LCPControlType.PROTOCOL_REJECT) {
 	override fun calculateLength(): Int = super.calculateLength() + 4 + data.size
 	override fun write(stream: OutputStream) = TODO("Protocol rejections")
 

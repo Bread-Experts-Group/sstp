@@ -20,6 +20,8 @@ enum class Flags(
 ) {
 	IP_ADDRESS("ip", false, false, "0.0.0.0"),
 	PORT_NUMBER("port", false, false, 443, ::stringToInt),
+	VPN_LOCAL_ADDRESS("my_vpn_ip", false, false, "0.0.0.1"),
+	VPN_REMOTE_ADDRESS("peer_vpn_ip", false, false, "0.0.1.0"),
 	KEYSTORE("keystore", false, false, null),
 	KEYSTORE_PASSPHRASE("keystore_passphrase", true, false, null),
 	AUTHENTICATION_SUCCESSFUL_MESSAGE("auth_ok_msg", false, false, "Authentication OK, %s"),
@@ -27,9 +29,9 @@ enum class Flags(
 	PAP_USERNAME("pap_username", false, true, null),
 	PAP_PASSPHRASE("pap_passphrase", true, true, null),
 	AUTHENTICATION_TRIES("auth_tries", false, false, 3, ::stringToInt),
-	UDP_TIMEOUT("udp_timeout", false, false, ::stringToInt),
-	TCP_TIMEOUT("tcp_timeout", false, false, ::stringToInt),
-	ICMP_TIMEOUT("icmp_timeout", false, false, ::stringToInt),
+	UDP_TIMEOUT("udp_timeout", false, false, 30000, ::stringToInt),
+	TCP_TIMEOUT("tcp_timeout", false, false, 1000, ::stringToInt),
+	ICMP_TIMEOUT("icmp_timeout", false, false, 1000, ::stringToInt),
 	NETWORK_INTERFACE_LIST("ni_list", false, false, false, ::stringToBoolean),
 	VERBOSITY("verbosity", false, false, 0, ::stringToInt),
 	SECURE_RANDOM_GENERATOR("random", false, false, null);

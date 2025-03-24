@@ -11,7 +11,9 @@ abstract class IPCPConfigurationOption(
 ) : SmartToString(), Writable {
 	enum class InternetProtocolOptionType(val code: Int) {
 		IP_COMPRESSION_PROTOCOL(2),
-		IP_ADDRESS(3);
+		IP_ADDRESS(3),
+		PRIMARY_DNS_SERVER(129),
+		SECONDARY_DNS_SERVER(131);
 
 		companion object {
 			val mapping = entries.associateBy { it.code }
@@ -33,6 +35,8 @@ abstract class IPCPConfigurationOption(
 			return when (type) {
 				InternetProtocolOptionType.IP_COMPRESSION_PROTOCOL -> IPCPCompressionOption.read(stream)
 				InternetProtocolOptionType.IP_ADDRESS -> IPCPAddressOption.read(stream)
+				InternetProtocolOptionType.PRIMARY_DNS_SERVER -> IPCPPrimaryDNSOption.read(stream)
+				InternetProtocolOptionType.SECONDARY_DNS_SERVER -> IPCPSecondaryDNSOption.read(stream)
 			}
 		}
 	}
