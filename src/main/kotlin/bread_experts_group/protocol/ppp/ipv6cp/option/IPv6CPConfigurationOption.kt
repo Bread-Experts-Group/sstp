@@ -21,9 +21,8 @@ abstract class IPv6CPConfigurationOption(
 		stream.write(this.calculateLength())
 	}
 
-	override fun gist(): String {
-		TODO("Not yet implemented")
-	}
+	override fun gist(): String = "OPT [${calculateLength()}] $type : ${optionGist()}"
+	abstract fun optionGist(): String
 
 	companion object {
 		fun read(stream: InputStream): IPv6CPConfigurationOption {

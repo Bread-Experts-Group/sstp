@@ -234,7 +234,7 @@ fun main(args: Array<String>) {
 			)
 		}.uncaughtExceptionHandler = Thread.UncaughtExceptionHandler { thread, e ->
 			when (e) {
-				is SSLException -> logLn(PALE_PINKISH_RED, "TLS/SSL connection failure; ${e.stackTraceToString()}")
+				is SSLException -> logLn(PALE_RED, "TLS/SSL connection failure; ${e.stackTraceToString()}")
 				else -> logLn(PALE_RED, "Server failure outside of operation; ${e.stackTraceToString()}")
 			}
 			newSocket.close()

@@ -1,7 +1,7 @@
 package bread_experts_group.protocol.dhcp.option
 
 import bread_experts_group.util.readInet4
-import bread_experts_group.util.writeInet4
+import bread_experts_group.util.writeInet
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.Inet4Address
@@ -14,7 +14,7 @@ class DHCPSubnetMask(
 
 	override fun write(stream: OutputStream) {
 		super.write(stream)
-		stream.writeInet4(subnetMask)
+		stream.writeInet(subnetMask)
 	}
 
 	companion object {

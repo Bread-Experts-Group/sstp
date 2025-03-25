@@ -20,9 +20,8 @@ sealed class CompressionControlProtocolFrame(
 		stream.write16(this.calculateLength())
 	}
 
-	override fun protocolGist(): String {
-		TODO("Not yet implemented")
-	}
+	override fun protocolGist(): String = "$type, ID: $identifier\n${ccpGist()}"
+	abstract fun ccpGist(): String
 
 	companion object {
 		fun read(stream: InputStream): CompressionControlProtocolFrame {
@@ -30,7 +29,9 @@ sealed class CompressionControlProtocolFrame(
 			val id = stream.read()
 			val length = stream.read16() - 4
 			return when (code) {
-				NCPControlType.CONFIGURE_REQUEST -> CCPRequest.read(stream, id, length)
+				NCPControlType.CONFIGURE_REQUEST -> CCPRequest(stream, length, id)
+				NCPControlType.CONFIGURE_NAK -> CCPNonAcknowledgement(stream, length, id)
+				NCPControlType.CONFIGURE_ACK -> CCPAcknowledgement(stream, length, id)
 				else -> TODO(code.toString())
 			}
 		}

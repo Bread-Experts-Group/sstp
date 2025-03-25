@@ -4,6 +4,7 @@ import java.io.InputStream
 
 class CCPBSDCompressOption : CCPConfigurationOption(ConfigurationOptionType.BSD_COMPRESS) {
 	override fun calculateLength(): Int = 3
+	override fun optionGist(): String = "BSD TODO"
 
 	companion object {
 		fun read(stream: InputStream): CCPBSDCompressOption {

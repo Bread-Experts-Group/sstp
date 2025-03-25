@@ -1,4 +1,4 @@
-package bread_experts_group.protocol.ipv4.tcp.option
+package bread_experts_group.protocol.ip.tcp.option
 
 import java.io.InputStream
 import java.io.OutputStream

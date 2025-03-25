@@ -20,8 +20,9 @@ enum class Flags(
 ) {
 	IP_ADDRESS("ip", false, false, "0.0.0.0"),
 	PORT_NUMBER("port", false, false, 443, ::stringToInt),
-	VPN_LOCAL_ADDRESS("my_vpn_ip", false, false, "0.0.0.1"),
-	VPN_REMOTE_ADDRESS("peer_vpn_ip", false, false, "0.0.1.0"),
+	VPN_LOCAL_ADDRESS_V4("my_vpn_ipv4", false, false, "0.0.0.1"),
+	VPN_REMOTE_ADDRESS_V4("peer_vpn_ipv4", false, false, "0.0.1.0"),
+	VPN_REMOTE_ADDRESS_V6("my_vpn_ipv6", false, false, "::0.0.1.0"),
 	KEYSTORE("keystore", false, false, null),
 	KEYSTORE_PASSPHRASE("keystore_passphrase", true, false, null),
 	AUTHENTICATION_SUCCESSFUL_MESSAGE("auth_ok_msg", false, false, "Authentication OK, %s"),

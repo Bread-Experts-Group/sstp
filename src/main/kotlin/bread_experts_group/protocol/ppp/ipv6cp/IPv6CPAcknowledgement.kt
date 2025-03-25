@@ -4,10 +4,10 @@ import bread_experts_group.protocol.ppp.NCPControlType
 import bread_experts_group.protocol.ppp.ipv6cp.option.IPv6CPConfigurationOption
 import java.io.InputStream
 
-class IPv6CPRequest(
+class IPv6CPAcknowledgement(
 	options: List<IPv6CPConfigurationOption>,
 	identifier: Int
-) : IPv6CPConfiguration(identifier, options, NCPControlType.CONFIGURE_REQUEST) {
+) : IPv6CPConfiguration(identifier, options, NCPControlType.CONFIGURE_ACK) {
 	constructor(stream: InputStream, length: Int, identifier: Int) : this(
 		readOpts(stream, length),
 		identifier

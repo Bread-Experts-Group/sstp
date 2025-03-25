@@ -1,7 +1,7 @@
 package bread_experts_group.protocol.dhcp.option
 
 import bread_experts_group.util.readInet4
-import bread_experts_group.util.writeInet4
+import bread_experts_group.util.writeInet
 import java.io.InputStream
 import java.io.OutputStream
 import java.net.Inet4Address
@@ -19,7 +19,7 @@ class DHCPRouters(
 
 	override fun write(stream: OutputStream) {
 		super.write(stream)
-		routers.forEach { stream.writeInet4(it) }
+		routers.forEach { stream.writeInet(it) }
 	}
 
 	companion object {

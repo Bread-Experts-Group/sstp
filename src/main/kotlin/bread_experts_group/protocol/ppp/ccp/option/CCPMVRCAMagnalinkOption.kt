@@ -5,6 +5,7 @@ import java.io.InputStream
 
 class CCPMVRCAMagnalinkOption : CCPConfigurationOption(ConfigurationOptionType.MVRCA_MAGNALINK) {
 	override fun calculateLength(): Int = 4
+	override fun optionGist(): String = "MVRCA TODO"
 
 	companion object {
 		fun read(stream: InputStream): CCPMVRCAMagnalinkOption {

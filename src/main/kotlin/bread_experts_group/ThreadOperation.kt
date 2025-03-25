@@ -1,23 +1,28 @@
 package bread_experts_group
 
-import bread_experts_group.protocol.ipv4.InternetProtocolFrame
-import bread_experts_group.protocol.ipv4.InternetProtocolFrame.IPFlag
-import bread_experts_group.protocol.ipv4.icmp.ICMPDestinationUnreachable
-import bread_experts_group.protocol.ipv4.icmp.ICMPEcho
-import bread_experts_group.protocol.ipv4.icmp.ICMPFrame
-import bread_experts_group.protocol.ipv4.tcp.TCPFrame
-import bread_experts_group.protocol.ipv4.tcp.TCPFrame.TCPFlag
-import bread_experts_group.protocol.ipv4.udp.UDPFrame
+import bread_experts_group.protocol.ip.tcp.TCPFrame
+import bread_experts_group.protocol.ip.tcp.TCPFrame.TCPFlag
+import bread_experts_group.protocol.ip.udp.UDPFrame
+import bread_experts_group.protocol.ip.v4.InternetProtocolFrame
+import bread_experts_group.protocol.ip.v4.InternetProtocolFrame.IPFlag
+import bread_experts_group.protocol.ip.v4.icmp.ICMPDestinationUnreachable
+import bread_experts_group.protocol.ip.v4.icmp.ICMPEcho
+import bread_experts_group.protocol.ip.v4.icmp.ICMPFrame
+import bread_experts_group.protocol.ip.v6.icmp.ICMPV6Frame
 import bread_experts_group.protocol.ppp.PointToPointProtocolFrame
 import bread_experts_group.protocol.ppp.ccp.CCPNonAcknowledgement
 import bread_experts_group.protocol.ppp.ccp.CCPRequest
 import bread_experts_group.protocol.ppp.ip.IPFrameEncapsulated
+import bread_experts_group.protocol.ppp.ip.IPv6FrameEncapsulated
 import bread_experts_group.protocol.ppp.ipcp.IPCPAcknowledgement
 import bread_experts_group.protocol.ppp.ipcp.IPCPNonAcknowledgement
 import bread_experts_group.protocol.ppp.ipcp.IPCPRequest
 import bread_experts_group.protocol.ppp.ipcp.IPCPTermination
 import bread_experts_group.protocol.ppp.ipcp.option.IPCPAddressOption
+import bread_experts_group.protocol.ppp.ipv6cp.IPv6CPAcknowledgement
+import bread_experts_group.protocol.ppp.ipv6cp.IPv6CPNonAcknowledgement
 import bread_experts_group.protocol.ppp.ipv6cp.IPv6CPRequest
+import bread_experts_group.protocol.ppp.ipv6cp.option.IPv6CPInterfaceIdentifierOption
 import bread_experts_group.protocol.ppp.lcp.*
 import bread_experts_group.protocol.ppp.lcp.option.LCPAddressAndControlCompressionOption
 import bread_experts_group.protocol.ppp.lcp.option.LCPAuthenticationProtocolOption
@@ -61,10 +66,10 @@ fun operation(
 	var magicMe = 0
 	var lcpThem: LCPAcknowledgement? = null
 	var lcpMe: LCPAcknowledgement? = null
-	var ipcpThem: IPCPAcknowledgement? = null
-	var ipcpMe: IPCPAcknowledgement? = null
 	var ipcpMyAddress: Inet4Address? = null
 	var ipcpTheirAddress: Inet4Address? = null
+	var ipv6cpMyInterface: ByteArray? = null
+	var ipv6cpTheirInterface: ByteArray? = null
 	var isAuthorized = 0
 	lateinit var protocol: ProtocolType
 
@@ -99,9 +104,7 @@ fun operation(
 			}
 		}
 		ipcpMyAddress = null
-		ipcpMe = null
 		ipcpTheirAddress = null
-		ipcpThem = null
 	}
 
 	fun handleLCPTermination(ppp: LCPTermination?, data: ByteArray) {
@@ -126,55 +129,39 @@ fun operation(
 		if (isAuthorized != -1) handleLCPTermination(null, "Failure to authenticate".encodeToByteArray())
 	}
 
-	fun handleCCP(ppp: CCPRequest) {
-		checkAuthForNCP()
+	fun handleIPCP(ppp: IPCPRequest) {
 		logLn(PALE_TEAL, "> ${PPPEncapsulate(ppp)}")
-		if (ppp.options.isNotEmpty()) {
-			PPPEncapsulate(CCPNonAcknowledgement(ppp.identifier, listOf(ppp.options.first())))
-				.also {
-					it.write(outStream)
-					logLn(PALE_PURPLE, "< $it")
-				}
+		val addressOpt = ppp.options.firstNotNullOf { it as? IPCPAddressOption }
+		if (addressOpt.address.address.sumOf { it.toInt() } == 0) {
+			val modOpts = ppp.options.toMutableList()
+			modOpts.remove(addressOpt)
+			val assigned = Inet4Address.getByName(singleArgs.getValue(Flags.VPN_REMOTE_ADDRESS_V4) as String)
+			modOpts.add(IPCPAddressOption(assigned as Inet4Address))
+			PPPEncapsulate(IPCPNonAcknowledgement(modOpts, ppp.identifier)).also {
+				it.write(outStream)
+				logLn(TEAL, "< $it")
+			}
 		} else {
-			TODO("STUFF")
+			PPPEncapsulate(IPCPAcknowledgement(ppp.options, ppp.identifier)).also {
+				it.write(outStream)
+				ipcpTheirAddress = addressOpt.address
+				logLn(TEAL, "< $it")
+			}
 		}
 	}
 
-	fun handleIPCP(ppp: IPCPRequest) {
-		checkAuthForNCP()
-		logLn(PALE_TEAL, "> ${PPPEncapsulate(ppp)}")
-		val ip = ppp.options.firstNotNullOfOrNull { it as? IPCPAddressOption }
-		if (ip == null || ip.address.address.sum() == 0) {
-			PPPEncapsulate(
-				IPCPNonAcknowledgement(
-					listOf(
-						IPCPAddressOption(
-							Inet4Address.getByName(
-								singleArgs.getValue(Flags.VPN_REMOTE_ADDRESS) as String
-							) as Inet4Address
-						)
-					),
-					ppp.identifier
-				)
-			).also {
-				it.write(outStream)
-				logLn(PALE_PURPLE, "< $it")
-			}
-			return
-		}
-		ipcpTheirAddress = ip.address
-		PPPEncapsulate(IPCPAcknowledgement(ppp.options, ppp.identifier)).also {
-			it.write(outStream)
-			ipcpThem = it.pppFrame
-			logLn(TEAL, "< $it")
-		}
-		ipcpMyAddress = Inet4Address.getByName(
-			singleArgs.getValue(Flags.VPN_LOCAL_ADDRESS) as String
-		) as Inet4Address
+	val llAddr = Inet4Address.getByName(singleArgs.getValue(Flags.VPN_LOCAL_ADDRESS_V4) as String) as Inet4Address
+	fun requestIPCP(ppp: IPCPNonAcknowledgement?) {
+		val address = if (ppp != null) {
+			logLn(PALE_PURPLE, "> ${PPPEncapsulate(ppp)}")
+			val setAddr = ppp.options.firstNotNullOf { it as? IPCPAddressOption }
+			if (setAddr.address.address.sumOf { it.toInt() } == 0) llAddr
+			else setAddr.address
+		} else llAddr
 		PPPEncapsulate(
 			IPCPRequest(
-				listOf(IPCPAddressOption(ipcpMyAddress!!)),
-				ppp.identifier + 1
+				listOf(IPCPAddressOption(address)),
+				0
 			)
 		).also {
 			it.write(outStream)
@@ -182,15 +169,138 @@ fun operation(
 		}
 	}
 
-	fun sendICMPUnreachable(code: Int, frame: InternetProtocolFrame) = IPEncapsulate(
-		ICMPDestinationUnreachable(
+	fun handleIPv6CP(ppp: IPv6CPRequest) {
+		logLn(PALE_TEAL, "> ${PPPEncapsulate(ppp)}")
+		val interfaceID = ppp.options.firstNotNullOf { it as? IPv6CPInterfaceIdentifierOption }
+		if (interfaceID.identifier.sumOf { it.toInt() } == 0) {
+			val modOpts = ppp.options.toMutableList()
+			modOpts.remove(interfaceID)
+			val assigned = Inet6Address.getByName(singleArgs.getValue(Flags.VPN_REMOTE_ADDRESS_V6) as String)
+			modOpts.add(IPv6CPInterfaceIdentifierOption(assigned.address.sliceArray(8..15)))
+			PPPEncapsulate(IPv6CPNonAcknowledgement(modOpts, ppp.identifier)).also {
+				it.write(outStream)
+				logLn(TEAL, "< $it")
+			}
+		} else {
+			PPPEncapsulate(IPv6CPAcknowledgement(ppp.options, ppp.identifier)).also {
+				it.write(outStream)
+				ipv6cpTheirInterface = interfaceID.identifier
+				logLn(TEAL, "< $it")
+			}
+		}
+	}
+
+	fun requestIPv6CP(ppp: IPv6CPNonAcknowledgement?) {
+		val id = if (ppp != null) {
+			logLn(PALE_PURPLE, "> ${PPPEncapsulate(ppp)}")
+			val setID = ppp.options.firstNotNullOf { it as? IPv6CPInterfaceIdentifierOption }
+			if (setID.identifier.sumOf { it.toInt() } == 0) ByteArray(8).also { random.nextBytes(it) }
+			else setID.identifier
+		} else ByteArray(8)
+		PPPEncapsulate(
+			IPv6CPRequest(
+				listOf(IPv6CPInterfaceIdentifierOption(id)),
+				0
+			)
+		).also {
+			it.write(outStream)
+			logLn(PALE_TEAL, "< $it")
+		}
+	}
+
+//	fun handleCCP(ppp: CCPRequest) {
+//		logLn(PALE_ORANGE, "> ${PPPEncapsulate(ppp)}")
+//		val deflate = ppp.options.firstNotNullOfOrNull { it as? CCPDEFLATEOption }
+//		if (deflate != null && deflate.windowSize == 32768) PPPEncapsulate(
+//			CCPAcknowledgement(ppp.identifier, listOf(deflate))
+//		).also {
+//			it.write(outStream)
+//			logLn(PALE_ORANGE, "< $it")
+//		} else PPPEncapsulate(
+//			CCPNonAcknowledgement(ppp.identifier, ppp.options)
+//		).also {
+//			it.write(outStream)
+//			logLn(PALE_RED, "< $it")
+//		}
+//	}
+//
+//	fun requestCCP(id: Int) {
+//		PPPEncapsulate(
+//			CCPRequest(
+//				id,
+//				listOf(CCPDEFLATEOption(32768, DEFLATEMethod.DEFLATE, DEFLATECheckMethod.SEQUENCE))
+//			)
+//		).also {
+//			it.write(outStream)
+//			logLn(PALE_RED, "< $it")
+//		}
+//	}
+
+	fun handleNCP(ppp: PointToPointProtocolFrame) {
+		checkAuthForNCP()
+		when (ppp) {
+			is CCPRequest -> {
+				// TODO: Stabilize CCP
+				logLn(PALE_RED, " > ${PPPEncapsulate(ppp)}")
+				PPPEncapsulate(
+					CCPNonAcknowledgement(
+						ppp.identifier, ppp.options
+					)
+				).also {
+					it.write(outStream)
+					logLn(PALE_RED, "< $it")
+				}
+//				handleCCP(ppp)
+//				requestCCP(ppp.identifier + 1)
+			}
+
+//			is CCPAcknowledgement -> {
+//				logLn(PALE_ORANGE, "> ${PPPEncapsulate(ppp)}")
+//				PointToPointProtocolFrame.compressionHandler = {
+//					it.read16() // sequence
+//					DEFLATEStream(it)
+//				}
+//			}
+
+			// IPv4 Configuration Protocol
+			is IPCPAcknowledgement -> {
+				logLn(TEAL, "> ${PPPEncapsulate(ppp)}")
+				ipcpMyAddress = ppp.options.firstNotNullOf { it as? IPCPAddressOption }.address
+			}
+
+			is IPCPNonAcknowledgement -> requestIPCP(ppp)
+			is IPCPRequest -> {
+				handleIPCP(ppp)
+				if (ipcpMyAddress == null) requestIPCP(null)
+			}
+
+			// IPv6 Configuration Protocol
+			is IPv6CPAcknowledgement -> {
+				logLn(TEAL, " > ${PPPEncapsulate(ppp)}")
+				ipv6cpMyInterface = ppp.options.firstNotNullOf {
+					it as? IPv6CPInterfaceIdentifierOption
+				}.identifier
+			}
+
+			is IPv6CPNonAcknowledgement -> requestIPv6CP(ppp)
+			is IPv6CPRequest -> {
+				handleIPv6CP(ppp)
+				if (ipv6cpMyInterface == null) requestIPv6CP(null)
+			}
+
+			else -> TODO(ppp.gist())
+		}
+	}
+
+	fun sendICMPUnreachable(code: Int, frame: InternetProtocolFrame<*>) = IPEncapsulate(
+		InternetProtocolFrame(
 			0, 0, 0, listOf(IPFlag.DONT_FRAGMENT),
 			0, 64, frame.destination, frame.source,
-			frame.asBytes(), code
+			ICMPDestinationUnreachable(frame.asBytes(), code)
 		)
 	).also {
 		it.write(outStream)
-		logLn(PALE_PINKISH_RED, "< $it")
+		logLn(PALE_RED, "< $it")
 	}
 
 	data class TCPConnection(
@@ -255,59 +365,54 @@ fun operation(
 							if (lcpThem == null) {
 								ppp as LCPRequest
 								logLn(PALE_ORANGE, "> ${PPPEncapsulate(ppp)}")
-								var a = ppp.options.firstOrNull { it is LCPProtocolFieldCompressionOption }
-								var b = ppp.options.firstOrNull { it is LCPAddressAndControlCompressionOption }
-								if (a != null || b != null) {
-									PPPEncapsulate(
-										LCPNonAcknowledgement(
-											buildList {
-												if (a != null) add(a)
-												if (b != null) add(b)
-											},
-											ppp.identifier
-										)
-									).also {
-										it.write(outStream)
-										logLn(PALE_RED, "< $it")
+								PPPEncapsulate(LCPAcknowledgement(ppp.options, ppp.identifier)).also {
+									PointToPointProtocolFrame.compression.inbound.protocol = ppp.options.any {
+										it is LCPProtocolFieldCompressionOption
 									}
-								} else {
-									PPPEncapsulate(LCPAcknowledgement(ppp.options, ppp.identifier)).also {
-										it.write(outStream)
-										lcpThem = it.pppFrame
-										logLn(ORANGE, "< $it")
+									PointToPointProtocolFrame.compression.inbound.addressAndControl = ppp.options.any {
+										it is LCPAddressAndControlCompressionOption
 									}
-									magicMe = random.nextInt()
-									PPPEncapsulate(
-										LCPRequest(
-											buildList {
-												add(LCPMagicNumberOption(magicMe))
-												if (!multipleArgs[Flags.PAP_USERNAME].isNullOrEmpty()) {
-													add(
-														LCPAuthenticationProtocolOption(
-															AuthenticationProtocol.PASSWORD_AUTHENTICATION_PROTOCOL
-														)
+									it.write(outStream)
+									lcpThem = it.pppFrame
+									logLn(ORANGE, "< $it")
+								}
+								magicMe = random.nextInt()
+								PPPEncapsulate(
+									LCPRequest(
+										buildList {
+											add(LCPMagicNumberOption(magicMe))
+											add(LCPProtocolFieldCompressionOption())
+											add(LCPAddressAndControlCompressionOption())
+											if (!multipleArgs[Flags.PAP_USERNAME].isNullOrEmpty()) {
+												add(
+													LCPAuthenticationProtocolOption(
+														AuthenticationProtocol.PASSWORD_AUTHENTICATION_PROTOCOL
 													)
-												} else isAuthorized = -1
-											},
-											0x00
-										)
-									).also {
-										it.write(outStream)
-										logLn(PALE_BLUE, "< $it")
-									}
+												)
+											} else isAuthorized = -1
+										},
+										0x00
+									)
+								).also {
+									it.write(outStream)
+									logLn(PALE_BLUE, "< $it")
 								}
 							} else if (lcpMe == null) {
 								if (ppp is LCPAcknowledgement) {
+									PointToPointProtocolFrame.compression.outbound.protocol = ppp.options.any {
+										it is LCPProtocolFieldCompressionOption
+									}
+									PointToPointProtocolFrame.compression.outbound.addressAndControl = ppp.options.any {
+										it is LCPAddressAndControlCompressionOption
+									}
 									logLn(BLUE, "> ${PPPEncapsulate(ppp)}")
 									lcpMe = ppp
 								} else TODO(ppp.gist())
 							} else when (ppp) {
 								is LCPEcho -> handleLCPEcho(ppp)
-								is CCPRequest -> TODO("Reject") //handleCCP(ppp)
-								is IPCPRequest -> handleIPCP(ppp)
-								is IPv6CPRequest -> TODO("Reject")
+
 								is PAPRequest -> {
-									logLn(PALE_PINKISH_RED, "> ${PPPEncapsulate(ppp).gist()}")
+									logLn(PALE_RED, "> ${PPPEncapsulate(ppp).gist()}")
 									val idIndex = multipleArgs.getValue(Flags.PAP_USERNAME).indexOf(ppp.peerID)
 									val passphrase = multipleArgs.getValue(Flags.PAP_PASSPHRASE).getOrNull(idIndex)
 									if (idIndex == -1 || (passphrase != null && ppp.password != passphrase)) {
@@ -315,7 +420,7 @@ fun operation(
 											.format(ppp.peerID)
 										PPPEncapsulate(PAPAcknowledge(ppp.identifier, err, false)).also {
 											it.write(outStream)
-											logLn(PALE_PINKISH_RED, "< ${it.gist()}")
+											logLn(PALE_RED, "< ${it.gist()}")
 										}
 										isAuthorized++
 										if (isAuthorized > singleArgs.getValue(Flags.AUTHENTICATION_TRIES) as Int)
@@ -335,7 +440,7 @@ fun operation(
 								}
 
 								is LCPTermination -> handleLCPTermination(ppp, ppp.data)
-								else -> TODO(ppp.gist())
+								else -> handleNCP(ppp)
 							}
 						}
 					}
@@ -358,11 +463,12 @@ fun operation(
 							val ppp = PointToPointProtocolFrame.read(ByteArrayInputStream(message.data))
 							when (ppp) {
 								is LCPEcho -> handleLCPEcho(ppp)
-								is CCPRequest -> handleCCP(ppp)
-								is IPCPRequest -> handleIPCP(ppp)
-								is IPCPAcknowledgement -> {
-									logLn(TEAL, "> ${PPPEncapsulate(ppp)}")
-									ipcpMe = ppp
+
+								is IPv6FrameEncapsulated -> {
+									when (ppp.frame.data) {
+										is ICMPV6Frame -> logLn(" > ${PPPEncapsulate(ppp)}")
+										else -> TODO(ppp.frame.gist())
+									}
 								}
 
 								is IPFrameEncapsulated -> {
@@ -370,33 +476,37 @@ fun operation(
 										if (ppp.frame.destination == ipcpMyAddress!!) InetAddress.getLoopbackAddress()
 										else if (ppp.frame.destination == ipcpTheirAddress!!) tlsSocket.localAddress
 										else ppp.frame.destination
-									when (ppp.frame) {
-										is ICMPFrame -> when (ppp.frame) {
-											is ICMPEcho -> {
-												if (ppp.frame.type == ICMPFrame.ICMPType.ECHO_REQUEST) {
-													logLn(PALE_PINK, "> ${PPPEncapsulate(ppp)}")
-													val actualReq = actualDestination.isReachable(
-														singleArgs.getValue(Flags.ICMP_TIMEOUT) as Int
-													)
-													if (actualReq) IPEncapsulate(
+									when (ppp.frame.data) {
+										is ICMPEcho -> {
+											if (ppp.frame.data.type == ICMPFrame.ICMPType.ECHO_REQUEST) {
+												logLn(PALE_PINK, "> ${PPPEncapsulate(ppp)}")
+												val actualReq = actualDestination.isReachable(
+													singleArgs.getValue(Flags.ICMP_TIMEOUT) as Int
+												)
+												if (actualReq) IPEncapsulate(
+													InternetProtocolFrame(
+														0, 0, 0, listOf(IPFlag.DONT_FRAGMENT),
+														0, 64, ppp.frame.destination, ppp.frame.source,
 														ICMPEcho(
-															0, 0, 0, listOf(IPFlag.DONT_FRAGMENT),
-															0, 64, ppp.frame.destination, ppp.frame.source,
-															ppp.frame.echoIdentifier, ppp.frame.echoSequence,
-															ppp.frame.data, false
+															ppp.frame.data.echoIdentifier, ppp.frame.data.echoSequence,
+															ppp.frame.data.data, false
 														)
-													).also {
-														it.write(outStream)
-														logLn(PALE_PINKISH_RED, "< $it")
-													} else sendICMPUnreachable(1, ppp.frame)
-												}
+													)
+												).also {
+													it.write(outStream)
+													logLn(PALE_RED, "< $it")
+												} else sendICMPUnreachable(1, ppp.frame)
 											}
-
-											else -> null
 										}
 
 										is TCPFrame -> {
-											fun sendTCP(frame: TCPFrame) = IPEncapsulate(frame).let {
+											fun sendTCP(frame: TCPFrame) = IPEncapsulate(
+												InternetProtocolFrame(
+													0, 0, 0, listOf(IPFlag.DONT_FRAGMENT),
+													0, 64, ppp.frame.destination, ppp.frame.source,
+													frame
+												)
+											).let {
 												it.write(outStream)
 												logLn(PALE_PINK, "< $it")
 											}
@@ -408,9 +518,7 @@ fun operation(
 											) {
 												sendTCP(
 													TCPFrame(
-														0, 0, 0, listOf(IPFlag.DONT_FRAGMENT),
-														0, 64, ppp.frame.destination, ppp.frame.source,
-														ppp.frame.destPort, ppp.frame.sourcePort,
+														ppp.frame.data.destPort, ppp.frame.data.sourcePort,
 														connection.seq, connection.ack,
 														listOf(*flag),
 														64240, 0, 0, emptyList(),
@@ -423,33 +531,31 @@ fun operation(
 											fun sendReset() {
 												sendTCP(
 													TCPFrame(
-														0, 0, 0, listOf(IPFlag.DONT_FRAGMENT),
-														0, 64, ppp.frame.destination, ppp.frame.source,
-														ppp.frame.destPort, ppp.frame.sourcePort,
-														ppp.frame.acknowledgementNumber, ppp.frame.sequence,
+														ppp.frame.data.destPort, ppp.frame.data.sourcePort,
+														ppp.frame.data.acknowledgementNumber, ppp.frame.data.sequence,
 														listOf(TCPFlag.RST),
 														64240, 0, 0, emptyList(),
 														byteArrayOf()
 													)
 												)
-												tcp.remove(ppp.frame.sourcePort)
+												tcp.remove(ppp.frame.data.sourcePort)
 											}
 
-											logLn(PALE_PINKISH_RED, "> ${PPPEncapsulate(ppp)}")
-											if (ppp.frame.tcpFlags.contains(TCPFlag.RST)) {
-												tcp.remove(ppp.frame.sourcePort)
+											logLn(PALE_RED, "> ${PPPEncapsulate(ppp)}")
+											if (ppp.frame.data.tcpFlags.contains(TCPFlag.RST)) {
+												tcp.remove(ppp.frame.data.sourcePort)
 												continue
 											}
 
-											val connection = tcp[ppp.frame.sourcePort]
+											val connection = tcp[ppp.frame.data.sourcePort]
 											if (connection == null) {
-												if (ppp.frame.flags.size == 1 && ppp.frame.tcpFlags[0] == TCPFlag.SYN) {
+												if (ppp.frame.flags.size == 1 && ppp.frame.data.tcpFlags[0] == TCPFlag.SYN) {
 													try {
 														val socket = Socket()
 														socket.connect(
 															InetSocketAddress(
 																actualDestination,
-																ppp.frame.destPort
+																ppp.frame.data.destPort
 															),
 															singleArgs.getValue(Flags.TCP_TIMEOUT) as Int
 														)
@@ -471,8 +577,8 @@ fun operation(
 															} catch (_: SocketException) {
 															}
 														}
-														tcp[ppp.frame.sourcePort] = newConnection
-														newConnection.ack = ppp.frame.sequence + 1
+														tcp[ppp.frame.data.sourcePort] = newConnection
+														newConnection.ack = ppp.frame.data.sequence + 1
 														newConnection.lastAck = newConnection.ack
 														newConnection.seq = random.nextInt()
 														sendFrame(newConnection, TCPFlag.SYN, TCPFlag.ACK)
@@ -488,20 +594,20 @@ fun operation(
 												var data = byteArrayOf()
 												val flags = mutableListOf<TCPFlag>()
 												if (
-													ppp.frame.tcpFlags.contains(TCPFlag.ACK) &&
-													!ppp.frame.tcpFlags.contains(TCPFlag.SYN)
+													ppp.frame.data.tcpFlags.contains(TCPFlag.ACK) &&
+													!ppp.frame.data.tcpFlags.contains(TCPFlag.SYN)
 												) {
-													if (ppp.frame.data.isNotEmpty()) {
-														connection.ack += ppp.frame.data.size
-														connection.sendBuffer.add(ppp.frame.data)
+													if (ppp.frame.data.tcpData.isNotEmpty()) {
+														connection.ack += ppp.frame.data.tcpData.size
+														connection.sendBuffer.add(ppp.frame.data.tcpData)
 														flags.add(TCPFlag.ACK)
 													}
-													if (connection.removeEntry) tcp.remove(ppp.frame.sourcePort)
+													if (connection.removeEntry) tcp.remove(ppp.frame.data.sourcePort)
 												} else {
 													sendReset()
 													send = false
 												}
-												if (ppp.frame.tcpFlags.contains(TCPFlag.PSH)) {
+												if (ppp.frame.data.tcpFlags.contains(TCPFlag.PSH)) {
 													try {
 														connection.sendBuffer.removeIf {
 															connection.socket.outputStream.write(it)
@@ -512,7 +618,7 @@ fun operation(
 														send = false
 													}
 												}
-												if (ppp.frame.tcpFlags.contains(TCPFlag.FIN)) {
+												if (ppp.frame.data.tcpFlags.contains(TCPFlag.FIN)) {
 													connection.ack += 1
 													flags.add(TCPFlag.ACK)
 													flags.add(TCPFlag.FIN)
@@ -533,10 +639,10 @@ fun operation(
 												channel.connect(
 													InetSocketAddress(
 														actualDestination,
-														ppp.frame.destPort
+														ppp.frame.data.destPort
 													)
 												)
-												channel.write(ByteBuffer.wrap(ppp.frame.data))
+												channel.write(ByteBuffer.wrap(ppp.frame.data.udpData))
 												var seq = 0
 												try {
 													while (true) {
@@ -551,12 +657,15 @@ fun operation(
 														packet.flip()
 														packet.get(read)
 														IPEncapsulate(
-															UDPFrame(
+															InternetProtocolFrame(
+
 																0, 0, 0, listOf(IPFlag.DONT_FRAGMENT),
 																0, 64,
 																ppp.frame.destination, ppp.frame.source,
-																ppp.frame.destPort, ppp.frame.sourcePort,
-																0, read
+																UDPFrame(
+																	ppp.frame.data.destPort, ppp.frame.data.sourcePort,
+																	0, read
+																)
 															)
 														).also {
 															it.write(outStream)
@@ -580,7 +689,7 @@ fun operation(
 								is IPCPTermination -> handleIPCPTermination(ppp, ppp.data)
 								is LCPDiscardRequest -> {}
 								is LCPProtocolRejection -> {}
-								else -> TODO(ppp.gist())
+								else -> handleNCP(ppp)
 							}
 						}
 					}

@@ -1,4 +1,4 @@
-package bread_experts_group.protocol.ipv4.tcp.option
+package bread_experts_group.protocol.ip.tcp.option
 
 class TCPNoOperationOption : TCPOption(TCPOptionType.NO_OPERATION) {
 	override fun calculateLength(): Int = 1

@@ -20,9 +20,8 @@ sealed class InternetProtocolV6ControlProtocolFrame(
 		stream.write16(this.calculateLength())
 	}
 
-	override fun protocolGist(): String {
-		TODO("Not yet implemented")
-	}
+	override fun protocolGist(): String = "$type, ID: $identifier\n${ipv6cpGist()}"
+	abstract fun ipv6cpGist(): String
 
 	companion object {
 		fun read(stream: InputStream): InternetProtocolV6ControlProtocolFrame {
@@ -30,7 +29,9 @@ sealed class InternetProtocolV6ControlProtocolFrame(
 			val id = stream.read()
 			val length = stream.read16() - 4
 			return when (code) {
-				NCPControlType.CONFIGURE_REQUEST -> IPv6CPRequest.read(stream, id, length)
+				NCPControlType.CONFIGURE_REQUEST -> IPv6CPRequest(stream, length, id)
+				NCPControlType.CONFIGURE_ACK -> IPv6CPAcknowledgement(stream, length, id)
+				NCPControlType.CONFIGURE_NAK -> IPv6CPNonAcknowledgement(stream, length, id)
 				else -> TODO(code.toString())
 			}
 		}
