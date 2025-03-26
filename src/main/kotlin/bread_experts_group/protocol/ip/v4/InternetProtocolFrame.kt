@@ -74,6 +74,13 @@ class InternetProtocolFrame<T : InternetProtocol>(
 			return sum.inv() and 0xFFFF
 		}
 
+		fun readVJ(stream: InputStream): InternetProtocolFrame<*> {
+			val delta = stream.read()
+			val connectionNumber = stream.read()
+			val checksum = stream.read16()
+			TODO("$delta, $connectionNumber, $checksum")
+		}
+
 		fun read(stream: InputStream): InternetProtocolFrame<*> {
 			val (version, ihl) = stream.read().let { (it shr 4) to (it and 0xF) }
 			if (version != 4) throw IllegalStateException(version.toString())

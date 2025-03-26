@@ -20,6 +20,7 @@ abstract class PointToPointProtocolFrame internal constructor(
 
 	enum class PPPProtocol(val code: Int) {
 		INTERNET_PROTOCOL_V4(0x0021),
+		INTERNET_PROTOCOL_V4_VJ(0x002F),
 		INTERNET_PROTOCOL_V6(0x0057),
 		COMPRESSED_DATAGRAM(0x00FD),
 		LINK_CONTROL_PROTOCOL(0xC021),
@@ -56,7 +57,8 @@ abstract class PointToPointProtocolFrame internal constructor(
 
 		data class PPPCompressionObject(
 			var protocol: Boolean = false,
-			var addressAndControl: Boolean = false
+			var addressAndControl: Boolean = false,
+			var vjIP: Boolean = false
 		)
 
 		fun read(stream: InputStream): PointToPointProtocolFrame {
@@ -72,6 +74,7 @@ abstract class PointToPointProtocolFrame internal constructor(
 			)
 			return when (protocol) {
 				PPPProtocol.INTERNET_PROTOCOL_V4 -> IPFrameEncapsulated.read(stream)
+				PPPProtocol.INTERNET_PROTOCOL_V4_VJ -> IPFrameEncapsulated.readVJ(stream)
 				PPPProtocol.INTERNET_PROTOCOL_V6 -> IPv6FrameEncapsulated.read(stream)
 				PPPProtocol.PASSWORD_AUTHENTICATION_PROTOCOL -> PasswordAuthenticationProtocolFrame.read(stream)
 				PPPProtocol.LINK_CONTROL_PROTOCOL -> LinkControlProtocolFrame.read(stream)

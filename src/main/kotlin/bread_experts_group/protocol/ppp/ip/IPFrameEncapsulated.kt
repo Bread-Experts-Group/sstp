@@ -16,8 +16,7 @@ class IPFrameEncapsulated(val frame: InternetProtocolFrame<*>) : PointToPointPro
 	override fun protocolGist(): String = frame.gist()
 
 	companion object {
-		fun read(stream: InputStream): IPFrameEncapsulated {
-			return IPFrameEncapsulated(InternetProtocolFrame.read(stream))
-		}
+		fun read(stream: InputStream): IPFrameEncapsulated = IPFrameEncapsulated(InternetProtocolFrame.read(stream))
+		fun readVJ(stream: InputStream): IPFrameEncapsulated = IPFrameEncapsulated(InternetProtocolFrame.readVJ(stream))
 	}
 }
